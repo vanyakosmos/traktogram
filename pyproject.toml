@@ -7,10 +7,13 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.6"
-python-telegram-bot = "^12.3.0"
 redis = "^3.3.11"
 python-dotenv = "^0.10.5"
 colorlog = "^4.1.0"
+aiohttp = {extras = ["speedups"], version = "^3.6.2"}
+aiogram = "^2.6.1"
+ujson = "^1.35"
+uvloop = "^0.14.0"
 
 [tool.poetry.dev-dependencies]
 

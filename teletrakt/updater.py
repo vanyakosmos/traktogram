@@ -1,31 +1,33 @@
 import logging
-from typing import Type
 
-from telegram.ext import BaseFilter, CommandHandler, Handler, MessageHandler, Updater
+from aiogram import Bot, Dispatcher
 
 from teletrakt.config import BOT_TOKEN
 
 
 logger = logging.getLogger(__name__)
-updater = Updater(token=BOT_TOKEN, use_context=True)
-dp = updater.dispatcher
 commands_help = {}
 
+bot = Bot(token=BOT_TOKEN, parse_mode='MarkdownV2')
+dp = Dispatcher(bot)
 
-def make_wrapper(handler_cls: Type[Handler], *args, **kwargs):
+
+def message_handler(*filters, **kwargs):
     def wrapper(f):
-        logger.debug(f"add handler: {handler_cls.__name__} - {f.__name__}")
-        dp.add_handler(handler_cls(*args, callback=f, **kwargs))
-        return f
+        logger.debug(f"add message handler: {f.__name__}")
+        handler = dp.message_handler(*filters, **kwargs)
+        return handler(f)
 
     return wrapper
-
-
-def message_handler(filters: BaseFilter, **kwargs):
-    return make_wrapper(MessageHandler, filters, **kwargs)
 
 
 def command_handler(command: str, help=None, **kwargs):
     if help:
         commands_help[command] = help
-    return make_wrapper(CommandHandler, command, **kwargs)
+
+    def wrapper(f):
+        logger.debug(f"add command handler: {f.__name__}")
+        handler = dp.message_handler(commands=[command])
+        return handler(f)
+
+    return wrapper
