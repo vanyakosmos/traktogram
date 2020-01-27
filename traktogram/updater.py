@@ -2,7 +2,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 
-from teletrakt.config import BOT_TOKEN
+from .config import BOT_TOKEN
 
 
 logger = logging.getLogger(__name__)

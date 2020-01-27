@@ -5,7 +5,7 @@ from time import time
 import aiohttp
 from yarl import URL
 
-from teletrakt.config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
+from .config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 
 
 logger = logging.getLogger(__name__)

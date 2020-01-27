@@ -43,7 +43,7 @@ LOGGING_CONFIG = {
             'level': LOG_LEVEL_ROOT,
             'propagate': False
         },
-        'teletrakt': {
+        'traktogram': {
             'handlers': ['console'],
             'level': LOG_LEVEL,
             'propagate': False

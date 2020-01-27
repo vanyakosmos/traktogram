@@ -3,7 +3,7 @@ import logging
 from aiogram.types import Message, Update
 from aiogram.utils.markdown import escape_md
 
-from teletrakt.store import store, state
+from .store import store, state
 from .trakt import TraktClient
 from .updater import command_handler, commands_help, dp, message_handler
 
