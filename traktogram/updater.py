@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 from aiogram import Bot, Dispatcher
 
@@ -8,7 +9,9 @@ from .config import BOT_TOKEN
 logger = logging.getLogger(__name__)
 commands_help = {}
 
-bot = Bot(token=BOT_TOKEN, parse_mode='MarkdownV2')
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    bot = Bot(token=BOT_TOKEN, parse_mode='Markdown')
 dp = Dispatcher(bot)
 
 

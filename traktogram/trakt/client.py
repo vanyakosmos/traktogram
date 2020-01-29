@@ -1,11 +1,15 @@
 import asyncio
 import logging
+from datetime import datetime
+from pprint import pprint
 from time import time
+from typing import List
 
 import aiohttp
 from yarl import URL
 
-from .config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
+from .models import CalendarShow, Episode
+from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 
 
 logger = logging.getLogger(__name__)
@@ -15,21 +19,27 @@ class TraktClient:
     def __init__(self):
         self.base = URL('https://api.trakt.tv')
         self.session = aiohttp.ClientSession()
+        self.access_token = None
 
     @property
     def headers(self):
         return {
             'Content-type': 'application/json',
+            'Authorization': f'Bearer {self.access_token}',
             'trakt-api-key': TRAKT_CLIENT_ID,
             'trakt-api-version': '2',
         }
+
+    def auth(self, access_token):
+        self.access_token = access_token
+        return self
 
     async def device_code(self) -> dict:
         """
         Response example::
 
             {
-              "device_code": "d9c126a7706328d808914cfd1e40274b6e009f684b1aca271b9b3f90b3630d64",
+              "device_code": "foo",
               "user_code": "5055CC52",
               "verification_url": "https://trakt.tv/activate",
               "expires_in": 600,
@@ -45,10 +55,10 @@ class TraktClient:
         Response example::
 
             {
-              "access_token": "dbaf9757982a9e738f05d249b7b5b4a266b3a139049317c4909f2f263572c781",
+              "access_token": "foo",
               "token_type": "bearer",
               "expires_in": 7200,
-              "refresh_token": "76ba4c5c75c96f6087f58a4de10be6c00b29ea1ddc3b2022ee2016d1363e3a7c",
+              "refresh_token": "bar",
               "scope": "public",
               "created_at": 1487889741
             }
@@ -79,6 +89,26 @@ class TraktClient:
                 time_left = end_time - time()
                 yield False, time_left
             await asyncio.sleep(data['interval'])
+
+    async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarShow]:
+        if not start_date:
+            start_date = datetime.today().strftime('%Y-%m-%d')
+        url = self.base / f'calendars/my/shows/{start_date}/{days}'
+        if extended:
+            url = url.update_query(extended='full')
+        r = await self.session.get(url, headers=self.headers)
+        data = await r.json()
+        pprint(data)
+        return [CalendarShow.from_dict(e) for e in data]
+
+    async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
+        url = self.base / 'shows' / show_id / 'seasons' / str(season) / 'episodes' / str(episode)
+        if extended:
+            url = url.update_query(extended='full')
+        r = await self.session.get(url, headers=self.headers)
+        data = await r.json()
+        pprint(data)
+        return Episode.from_dict(data)
 
     async def close(self):
         await self.session.close()
