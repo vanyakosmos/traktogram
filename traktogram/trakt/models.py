@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 
 from attr import attrib, attrs
@@ -63,7 +64,7 @@ class CalendarShow(Model):
     def watch_url(self):
         if self.show.language == 'ja':
             slug = self.show.title.lower()
-            slug = slug.strip(' -')
+            slug = re.sub('[^a-z ]', '', slug).strip()
             slug = '-'.join(slug.split())
             return 'animedao', f'https://animedao.com/watch-online/{slug}-episode-{self.episode.number}'
         return None, None

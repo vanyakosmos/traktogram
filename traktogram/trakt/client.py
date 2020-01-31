@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from datetime import datetime
-from pprint import pprint
 from time import time
 from typing import List
 
@@ -92,22 +91,20 @@ class TraktClient:
 
     async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarShow]:
         if not start_date:
-            start_date = datetime.today().strftime('%Y-%m-%d')
+            start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
         url = self.base / f'calendars/my/shows/{start_date}/{days}'
         if extended:
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
-        pprint(data)
         return [CalendarShow.from_dict(e) for e in data]
 
     async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
-        url = self.base / 'shows' / show_id / 'seasons' / str(season) / 'episodes' / str(episode)
+        url = self.base / f'shows/{show_id}/seasons/{season}/episodes/{episode}'
         if extended:
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
-        pprint(data)
         return Episode.from_dict(data)
 
     async def close(self):
