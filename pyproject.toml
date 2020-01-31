@@ -16,6 +16,7 @@ ujson = "^1.35"
 uvloop = "^0.14.0"
 arq = "^0.18.4"
 attrs = "^19.3.0"
+watchgod = "^0.5"
 
 [tool.poetry.dev-dependencies]
 
