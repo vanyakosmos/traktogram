@@ -1,25 +1,37 @@
 import json
 from collections import defaultdict
-from pathlib import Path
+
+import redis
+
+from .config import REDIS_URI
 
 
-class FSStore:
-    def __init__(self, filepath: str):
-        self.fp = Path(filepath)
-        self.data = defaultdict(dict)
-        if self.fp.exists():
-            self.data.update(json.loads(self.fp.read_text()))
+class RedisStore:
+    def __init__(self, uri=REDIS_URI, prefix='traktogram'):
+        self.client = redis.Redis.from_url(uri)
+        self.prefix = prefix
+        self.key_tokens = self.key('tokens')
+
+    def key(self, *args):
+        return ':'.join([self.prefix, *args])
 
     def is_auth(self, user_id):
-        return str(user_id) in self.data
+        self.client.hexists(self.key_tokens, str(user_id))
 
     def save_creds(self, user_id, tokens):
-        self.data[user_id]['tokens'] = tokens
-        self.save()
+        self.client.hset(self.key_tokens, str(user_id), json.dumps(tokens))
 
-    def save(self):
-        self.fp.write_text(json.dumps(self.data, indent=4))
+    def load_creds(self, user_id):
+        data = self.client.hget(self.key_tokens, str(user_id))
+        return json.loads(data.decode())
+
+    def users_tokens_iter(self):
+        for user_id, tokens in self.client.hscan_iter(self.key_tokens):
+            yield (
+                user_id.decode(),
+                json.loads(tokens.decode()),
+            )
 
 
-store = FSStore('../db.json')
+store = RedisStore()
 state = defaultdict(lambda: {'state': None, 'context': None})

@@ -77,10 +77,11 @@ async def schedule_calendar_shows(ctx: dict):
     client: TraktClient = ctx['trakt']
     queue: ArqRedis = ctx['redis']
     # todo: send multiple requests in batch
-    for user_id in store.data:
-        access_token = store.data[user_id]['tokens']['access_token']
+    for user_id, tokens in store.users_tokens_iter():
+        access_token = tokens['access_token']
         client.auth(access_token)
         episodes = await client.calendar_shows(extended=True)
+        logger.debug(f"fetched {len(episodes)} episodes")
         groups = group_by_show(episodes)
         for group in groups:
             first = group[0]
@@ -89,6 +90,7 @@ async def schedule_calendar_shows(ctx: dict):
                 await queue.enqueue_job('send_airing_episode', user_id, first, _defer_until=first.first_aired)
             else:
                 await queue.enqueue_job('send_airing_episodes', user_id, group, _defer_until=first.first_aired)
+        logger.debug(f"scheduled {len(groups)} notifications")
 
 
 async def startup(ctx):
