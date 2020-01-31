@@ -12,12 +12,14 @@ TRAKT_CLIENT_SECRET = os.getenv('TRAKT_CLIENT_SECRET')
 
 LOGGING_CONFIG = {
     'version': 1,
+    'disable_existing_loggers': False,
     'formatters': {
         'default': {
             '()': 'colorlog.ColoredFormatter',
             'format': (
+                '%(purple)s%(asctime)s%(reset)s '
                 '%(log_color)s%(levelname)-8s%(reset)s '
-                '%(name)20s%(cyan)s:%(lineno)d%(reset)s '
+                '%(name)15s%(cyan)s:%(lineno)-3d%(reset)s '
                 '%(blue)s>%(reset)s '
                 '%(message)s'
             ),
@@ -28,6 +30,7 @@ LOGGING_CONFIG = {
                 'ERROR': 'red',
                 'CRITICAL': 'red,bg_white',
             },
+            'datefmt': '%Y-%m-%d %H:%M:%S',
         },
     },
     'handlers': {
