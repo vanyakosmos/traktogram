@@ -1,11 +1,8 @@
 import logging
 import logging.config
-import textwrap
-from collections import defaultdict
 from typing import List
 
-from aiogram.types import InlineKeyboardButton as IKB, InlineKeyboardMarkup
-from arq import Worker, cron
+from arq import Worker
 from arq.connections import ArqRedis
 from yarl import URL
 
@@ -13,21 +10,10 @@ from traktogram.config import LOGGING_CONFIG
 from traktogram.store import store
 from traktogram.trakt import CalendarShow, TraktClient
 from traktogram.updater import bot
+from traktogram.utils import dedent, group_by_show, make_notification_reply_markup
 
 
 logger = logging.getLogger(__name__)
-
-
-def dedent(text: str):
-    return textwrap.dedent(text).strip('\n')
-
-
-def group_by_show(episodes: List[CalendarShow]) -> List[List[CalendarShow]]:
-    groups = defaultdict(list)
-    for e in episodes:
-        key = (e.show.ids.trakt, e.first_aired)
-        groups[key].append(e)
-    return list(groups.values())
 
 
 async def send_airing_episode(ctx: dict, user_id: str, cs: CalendarShow):
@@ -48,20 +34,7 @@ async def send_airing_episode(ctx: dict, user_id: str, cs: CalendarShow):
         {season_text} / Episode {episode_text}
     """)
 
-    keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            IKB('show', url=str(show_url)),
-            IKB('season', url=str(season_url)),
-            IKB('episode', url=str(episode_url)),
-        ],
-        [
-            IKB('❌ watched', callback_data='notification:watched'),
-        ]
-    ])
-    source, watch_url = cs.watch_url
-    if source:
-        btn = IKB(f'watch on {source}', url=watch_url)
-        keyboard_markup.inline_keyboard[-1].append(btn)
+    keyboard_markup = make_notification_reply_markup(cs)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
@@ -77,8 +50,7 @@ async def schedule_calendar_shows(ctx: dict):
     client: TraktClient = ctx['trakt']
     queue: ArqRedis = ctx['redis']
     # todo: send multiple requests in batch
-    for user_id, tokens in store.users_tokens_iter():
-        access_token = tokens['access_token']
+    for user_id, access_token in store.users_tokens_iter():
         client.auth(access_token)
         episodes = await client.calendar_shows(extended=True)
         logger.debug(f"fetched {len(episodes)} episodes")

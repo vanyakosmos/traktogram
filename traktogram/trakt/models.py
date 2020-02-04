@@ -42,7 +42,7 @@ class Show(Model):
     ids = nested_attrib(IDs)
     title = attrib(type=str)
     year = attrib(type=int)
-    language = attrib(type=str)
+    language = attrib(type=str, default=None)
 
 
 @attrs
@@ -55,10 +55,9 @@ class Episode(Model):
 
 
 @attrs
-class CalendarShow(Model):
-    episode = nested_attrib(Episode)
+class ShowEpisode(Model):
     show = nested_attrib(Show)
-    first_aired = datetime_attrib()
+    episode = nested_attrib(Episode)
 
     @property
     def watch_url(self):
@@ -68,3 +67,9 @@ class CalendarShow(Model):
             slug = '-'.join(slug.split())
             return 'animedao', f'https://animedao.com/watch-online/{slug}-episode-{self.episode.number}'
         return None, None
+
+
+@attrs
+class CalendarShow(ShowEpisode):
+    first_aired = datetime_attrib()
+
