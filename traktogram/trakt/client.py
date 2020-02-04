@@ -130,7 +130,7 @@ class TraktClient:
         return ShowEpisode.from_dict(data[0])
 
     async def get_history(self, episode_id, extended=False) -> List[ShowEpisode]:
-        url = self.base / 'sync/history/episodes' / episode_id
+        url = self.base / 'sync/history/episodes' / str(episode_id)
         if extended:
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)

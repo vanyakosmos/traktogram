@@ -25,25 +25,11 @@ def group_by_show(episodes: List[CalendarShow]) -> List[List[CalendarShow]]:
     return list(groups.values())
 
 
-def make_notification_reply_markup(se: ShowEpisode, watched=True):
-    show, episode = se.show, se.episode
-    season = episode.season
-    ep_num = episode.number
-    # urls
-    base_url = URL('https://trakt.tv/shows')
-    show_url = base_url / show.ids.slug
-    season_url = show_url / 'seasons' / str(season)
-    episode_url = season_url / 'episodes' / str(ep_num)
-
+def make_notification_reply_markup(se: ShowEpisode, watched=False):
     keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
         [
-            IKB('show', url=str(show_url)),
-            IKB('season', url=str(season_url)),
-            IKB('episode', url=str(episode_url)),
-        ],
-        [
             IKB('✅ watched' if watched else '❌ watched',
-                callback_data=episode_cd.new(id=episode.ids.trakt, action='watched')),
+                callback_data=episode_cd.new(id=se.episode.ids.trakt, action='watched')),
         ]
     ])
     source, watch_url = se.watch_url

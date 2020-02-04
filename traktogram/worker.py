@@ -2,7 +2,7 @@ import logging
 import logging.config
 from typing import List
 
-from arq import Worker
+from arq import Worker, cron
 from arq.connections import ArqRedis
 from yarl import URL
 
@@ -34,7 +34,9 @@ async def send_airing_episode(ctx: dict, user_id: str, cs: CalendarShow):
         {season_text} / Episode {episode_text}
     """)
 
-    keyboard_markup = make_notification_reply_markup(cs)
+    client: TraktClient = ctx['trakt']
+    watched = len(await client.get_history(cs.episode.ids.trakt)) != 0
+    keyboard_markup = make_notification_reply_markup(cs, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
