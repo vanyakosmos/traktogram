@@ -1,0 +1,17 @@
+common: &common
+  watch:
+    - traktogram
+  env:
+    PYTHONPATH: .
+
+apps:
+  - name: redis
+    script: redis-server
+
+  - name: bot
+    script: traktogram/bot.py
+    <<: *common
+
+  - name: worker
+    script: traktogram/worker.py
+    <<: *common
