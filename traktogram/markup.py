@@ -3,18 +3,33 @@ from typing import List
 from aiogram.types import InlineKeyboardButton as IKB, InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 
-from traktogram.trakt.models import ShowEpisode
+from .trakt.models import ShowEpisode
+from .utils import compress_int, decompress_int
 
 
 episode_cd = CallbackData('e', 'id', 'action')
 episodes_cd = CallbackData('es', 'ids', 'action')
 
 
-def single_notification_markup(se: ShowEpisode, watched=False):
+def encode_ids(episodes: List[int]):
+    ids = [compress_int(id) for id in episodes]
+    return ','.join(ids) or '-'
+
+
+def decode_ids(ids: str):
+    if ids == '-':
+        return []
+    ids = ids.split(',')
+    ids = [decompress_int(id) for id in ids]
+    return ids
+
+
+def episode_notification_markup(se: ShowEpisode, watched: bool):
+    mark = '✅' if watched else '❌'
     keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
         [
-            IKB('✅ watched' if watched else '❌ watched',
-                callback_data=episode_cd.new(id=se.episode.ids.trakt, action='watched')),
+            IKB(f'{mark} watched',
+                callback_data=episode_cd.new(id=se.episode.ids.trakt, action='watch')),
         ]
     ])
     source, watch_url = se.episode.watch_url
@@ -24,15 +39,18 @@ def single_notification_markup(se: ShowEpisode, watched=False):
     return keyboard_markup
 
 
-def bulk_notification_markup(episodes: List[ShowEpisode], index=0):
+def episodes_notification_markup(se: ShowEpisode, episodes: List[int],  watched: bool, index=0):
+    prev_ids = encode_ids(episodes[:index])
+    cur_id = encode_ids(episodes[index:index + 1])
+    next_ids = encode_ids(episodes[index + 1:])
 
-
+    mark = '✅' if watched else '❌'
     keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
         [
-            IKB('◀️ prev', callback_data=episodes_cd.new(ids='', action='prev')),
-            IKB('✅ watched' if watched else '❌ watched',
-                callback_data=episodes_cd.new(id=se.episode.ids.trakt, action='watched')),
-            IKB('next ▶️', callback_data=episodes_cd.new(ids='', action='prev')),
+            IKB('◀️', callback_data=episodes_cd.new(ids=prev_ids, action='prev')),
+            IKB(f'{mark} {se.episode.season}x{se.episode.number}',
+                callback_data=episodes_cd.new(ids=cur_id, action='watch')),
+            IKB('▶️', callback_data=episodes_cd.new(ids=next_ids, action='next')),
         ]
     ])
     return keyboard_markup
