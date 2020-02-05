@@ -137,6 +137,9 @@ class TraktClient:
         data = await r.json()
         return [ShowEpisode.from_dict(e) for e in data]
 
+    async def watched(self, episode_id):
+        return len(await self.get_history(episode_id)) != 0
+
     async def add_to_history(self, episode_id) -> ShowEpisode:
         url = self.base / 'sync/history'
         data = {

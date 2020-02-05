@@ -2,6 +2,7 @@ import re
 from datetime import datetime
 
 from attr import attrib, attrs
+from yarl import URL
 
 
 def nested_attrib(cls):
@@ -44,6 +45,10 @@ class Show(Model):
     year = attrib(type=int)
     language = attrib(type=str, default=None)
 
+    @property
+    def url(self):
+        return URL('https://trakt.tv/shows') / self.ids.slug
+
 
 @attrs
 class Episode(Model):
@@ -52,12 +57,16 @@ class Episode(Model):
     season = attrib(type=int)
     number = attrib(type=int)
     number_abs = attrib(type=int, default=None)
+    show = attrib(type=Show, default=None)
+    watched = attrib(type=bool, default=False)
 
+    @property
+    def season_url(self):
+        return self.show.url / 'seasons' / str(self.season)
 
-@attrs
-class ShowEpisode(Model):
-    show = nested_attrib(Show)
-    episode = nested_attrib(Episode)
+    @property
+    def url(self):
+        return self.season_url / 'episodes' / str(self.number)
 
     @property
     def watch_url(self):
@@ -65,11 +74,23 @@ class ShowEpisode(Model):
             slug = self.show.title.lower()
             slug = re.sub('[^a-z ]', '', slug).strip()
             slug = '-'.join(slug.split())
-            return 'animedao', f'https://animedao.com/watch-online/{slug}-episode-{self.episode.number}'
+            return 'animedao', f'https://animedao.com/watch-online/{slug}-episode-{self.number}'
         return None, None
+
+
+@attrs
+class ShowEpisode(Model):
+    show = nested_attrib(Show)
+    episode = nested_attrib(Episode)
+
+    @classmethod
+    def from_dict(cls, data: dict = None, **kwargs):
+        # noinspection PyTypeChecker
+        se: ShowEpisode = super(ShowEpisode, cls).from_dict(data, **kwargs)
+        se.episode.show = se.show
+        return se
 
 
 @attrs
 class CalendarShow(ShowEpisode):
     first_aired = datetime_attrib()
-

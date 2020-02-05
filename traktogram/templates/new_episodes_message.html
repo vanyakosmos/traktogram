@@ -1,0 +1,6 @@
+<b>{{ show.title }}</b>
+<br/><br/>
+{% for episode in episodes %}
+  {% include 'episode_title.html' %}
+  <br/>
+{% endfor %}

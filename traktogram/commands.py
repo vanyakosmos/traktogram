@@ -3,10 +3,10 @@ import logging
 
 from aiogram.types import CallbackQuery, Message, Update
 
+from .markup import single_notification_markup, episode_cd
 from .store import state, store
 from .trakt import TraktClient
 from .updater import command_handler, commands_help, dp
-from .utils import episode_cd, make_notification_reply_markup
 
 
 logger = logging.getLogger(__name__)
@@ -68,12 +68,12 @@ async def auth_handler(message: Message):
 
 
 @dp.callback_query_handler(episode_cd.filter(action='watched'))
-async def inline_kb_answer_callback_handler(query: CallbackQuery, callback_data: dict):
+async def episode_watched_cb_handler(query: CallbackQuery, callback_data: dict):
     episode_id = callback_data['id']
     async with TraktClient() as client:
         access_token = store.get_access_token(query.from_user.id)
         client.auth(access_token)
-        watched = len(await client.get_history(episode_id)) != 0
+        watched = await client.watched(episode_id)
         logger.debug(f"watched {watched}")
         if watched:
             await client.remove_from_history(episode_id)
@@ -83,11 +83,16 @@ async def inline_kb_answer_callback_handler(query: CallbackQuery, callback_data:
         se = await client.get_episode(episode_id, extended=True)
         logger.debug(se)
     # update keyboard
-    markup = make_notification_reply_markup(se, watched=watched)
+    markup = single_notification_markup(se, watched=watched)
     await asyncio.gather(
         query.message.edit_reply_markup(markup),
         query.answer("marked as watched" if watched else "unwatched")
     )
+
+
+@dp.callback_query_handler(episode_cd.filter(action='watched'))  # todo: use another cb filter
+async def multi_episode_watched_cb_handler(query: CallbackQuery, callback_data: dict):
+    pass
 
 
 @dp.errors_handler()

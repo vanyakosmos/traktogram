@@ -1,16 +1,12 @@
+import string
 import textwrap
 from collections import defaultdict
 from typing import List
 
-from aiogram.types import InlineKeyboardButton as IKB, InlineKeyboardMarkup
-from aiogram.utils.callback_data import CallbackData
-from yarl import URL
-
 from traktogram.trakt import CalendarShow
-from traktogram.trakt.models import ShowEpisode
 
 
-episode_cd = CallbackData('episode', 'id', 'action')
+digs = string.digits + string.ascii_letters
 
 
 def dedent(text: str):
@@ -22,18 +18,18 @@ def group_by_show(episodes: List[CalendarShow]) -> List[List[CalendarShow]]:
     for e in episodes:
         key = (e.show.ids.trakt, e.first_aired)
         groups[key].append(e)
+    # todo: split big groups
     return list(groups.values())
 
 
-def make_notification_reply_markup(se: ShowEpisode, watched=False):
-    keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            IKB('✅ watched' if watched else '❌ watched',
-                callback_data=episode_cd.new(id=se.episode.ids.trakt, action='watched')),
-        ]
-    ])
-    source, watch_url = se.watch_url
-    if source:
-        btn = IKB(f'watch on {source}', url=watch_url)
-        keyboard_markup.inline_keyboard[-1].append(btn)
-    return keyboard_markup
+def compress_int(n: int, base=32):
+    if n < base:
+        return digs[n]
+    else:
+        return compress_int(n // base, base) + digs[n % base]
+
+
+def decompress_int(n: str, base=32, index=0):
+    if n:
+        return pow(base, index) * digs.index(n[-1]) + decompress_int(n[:-1], base, index + 1)
+    return 0

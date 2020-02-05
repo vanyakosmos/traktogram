@@ -1,0 +1,14 @@
+<b>{{ show.title }}</b> {% include 'episode_title.html' %}
+
+
+<br/>
+
+{% if episode.season == 0 %}
+  Special
+{% else %}
+  Season {{ episode.season }}
+{% endif %}
+/ Episode {{episode.number}}
+{% if episode.number_abs %}
+  ({{ episode.number_abs }})
+{% endif %}

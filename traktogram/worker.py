@@ -4,48 +4,41 @@ from typing import List
 
 from arq import Worker, cron
 from arq.connections import ArqRedis
-from yarl import URL
 
+from traktogram import rendering
 from traktogram.config import LOGGING_CONFIG
 from traktogram.store import store
 from traktogram.trakt import CalendarShow, TraktClient
 from traktogram.updater import bot
-from traktogram.utils import dedent, group_by_show, make_notification_reply_markup
+from traktogram.utils import group_by_show
+from traktogram.markup import single_notification_markup, bulk_notification_markup
 
 
 logger = logging.getLogger(__name__)
 
 
 async def send_airing_episode(ctx: dict, user_id: str, cs: CalendarShow):
-    # extract data
-    season = cs.episode.season
-    ep_num = cs.episode.number
-    ep_num_abs = cs.episode.number_abs
-    season_text = 'Special' if season == 0 else f'Season {season}'
-    episode_text = f'{ep_num} ({ep_num_abs})' if ep_num_abs else f'{ep_num}'
-    # urls
-    base_url = URL('https://trakt.tv/shows')
-    show_url = base_url / cs.show.ids.slug
-    season_url = show_url / 'seasons' / str(season)
-    episode_url = season_url / 'episodes' / str(ep_num)
-    # message template
-    text = dedent(f"""
-        *{cs.show.title}* {season}x{ep_num} ["{cs.episode.title}"]({episode_url})
-        {season_text} / Episode {episode_text}
-    """)
+    text = rendering.render_html(
+        'new_episode_message',
+        show=cs.show,
+        episode=cs.episode,
+    )
 
     client: TraktClient = ctx['trakt']
-    watched = len(await client.get_history(cs.episode.ids.trakt)) != 0
-    keyboard_markup = make_notification_reply_markup(cs, watched=watched)
+    watched = await client.watched(cs.episode.ids.trakt)
+    keyboard_markup = single_notification_markup(cs, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
 async def send_airing_episodes(ctx: dict, user_id: str, episodes: List[CalendarShow]):
-    # todo
-    await bot.send_message(user_id, "\n".join([
-        f"{e.show.title} - {e.episode.title}"
-        for e in episodes
-    ]))
+    show = episodes[0].show
+    text = rendering.render_html(
+        'new_episodes_message',
+        show=show,
+        episodes=[cs.episode for cs in episodes],
+    )
+    keyboard_markup = bulk_notification_markup(episodes)
+    await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
 async def schedule_calendar_shows(ctx: dict):
