@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from aiogram.types import CallbackQuery, Message, Update
 
+from traktogram.rendering import render_html
 from .markup import (
     calendar_multi_notification_markup, calendar_notification_markup, decode_ids, episode_cd,
     episodes_cd
@@ -46,11 +47,7 @@ async def auth_handler(message: Message):
     data = await flow.__anext__()
     code = data['user_code']
     url = data['verification_url']
-    msg_text = (
-        f"Authorize at {url} using code below\n"
-        f"```\n{code}\n```"
-    )
-    msg_template = f"{msg_text}\n{{}}"
+    msg_text = render_html('auth_message', url=url, code=code)
     reply_kwargs = dict(disable_web_page_preview=True)
     reply = await message.answer(msg_text, **reply_kwargs)
     async for ok, data in flow:
@@ -65,7 +62,8 @@ async def auth_handler(message: Message):
             break
         else:
             time_left = f"⏱ {int(data)} seconds left"
-            await reply.edit_text(msg_template.format(time_left), **reply_kwargs)
+            text = render_html('auth_message', url=url, code=code, extra=time_left)
+            await reply.edit_text(text, **reply_kwargs)
     else:
         await reply.edit_text("❌ failed to authenticated in time")
     await client.close()
