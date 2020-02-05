@@ -11,7 +11,7 @@ from traktogram.store import store
 from traktogram.trakt import CalendarShow, TraktClient
 from traktogram.updater import bot
 from traktogram.utils import group_by_show
-from traktogram.markup import episode_notification_markup, episodes_notification_markup
+from traktogram.markup import calendar_notification_markup, calendar_multi_notification_markup
 
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ async def send_airing_episode(ctx: dict, user_id: str, cs: CalendarShow):
     )
     client: TraktClient = ctx['trakt']
     watched = await client.watched(cs.episode.ids.trakt)
-    keyboard_markup = episode_notification_markup(cs, watched=watched)
+    keyboard_markup = calendar_notification_markup(cs, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
@@ -40,7 +40,7 @@ async def send_airing_episodes(ctx: dict, user_id: str, episodes: List[CalendarS
     client: TraktClient = ctx['trakt']
     watched = await client.watched(first.episode.ids.trakt)
     episodes_ids = [cs.episode.ids.trakt for cs in episodes]
-    keyboard_markup = episodes_notification_markup(first, episodes_ids, watched)
+    keyboard_markup = calendar_multi_notification_markup(first, episodes_ids, watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 

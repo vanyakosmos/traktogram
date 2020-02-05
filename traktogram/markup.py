@@ -24,7 +24,7 @@ def decode_ids(ids: str):
     return ids
 
 
-def episode_notification_markup(se: ShowEpisode, watched: bool):
+def calendar_notification_markup(se: ShowEpisode, watched: bool):
     mark = '✅' if watched else '❌'
     keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
         [
@@ -39,18 +39,19 @@ def episode_notification_markup(se: ShowEpisode, watched: bool):
     return keyboard_markup
 
 
-def episodes_notification_markup(se: ShowEpisode, episodes: List[int],  watched: bool, index=0):
+def calendar_multi_notification_markup(se: ShowEpisode, episodes: List[int], watched: bool, index=0):
     prev_ids = encode_ids(episodes[:index])
     cur_id = encode_ids(episodes[index:index + 1])
     next_ids = encode_ids(episodes[index + 1:])
-
     mark = '✅' if watched else '❌'
     keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
         [
-            IKB('◀️', callback_data=episodes_cd.new(ids=prev_ids, action='prev')),
+            IKB('👈️' if index > 0 else '🤛',
+                callback_data=episodes_cd.new(ids=prev_ids, action='prev')),
             IKB(f'{mark} {se.episode.season}x{se.episode.number}',
                 callback_data=episodes_cd.new(ids=cur_id, action='watch')),
-            IKB('▶️', callback_data=episodes_cd.new(ids=next_ids, action='next')),
+            IKB('👉' if index < len(episodes) - 1 else '🤜',
+                callback_data=episodes_cd.new(ids=next_ids, action='next')),
         ]
     ])
     return keyboard_markup
