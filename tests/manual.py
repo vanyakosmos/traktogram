@@ -11,7 +11,7 @@ from arq.connections import RedisSettings
 from traktogram.config import LOGGING_CONFIG
 from traktogram.store import store
 from traktogram.trakt import TraktClient
-from traktogram.utils import group_by_show
+from traktogram.utils import group_by_show, make_calendar_notification_task_id
 from traktogram.worker import send_calendar_multi_notifications, send_calendar_notifications
 
 
@@ -22,17 +22,42 @@ async def ctx_manager():
     d['redis'].close()
 
 
-async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, user_id, multi=False):
-    episodes = await client.calendar_shows(extended=True, start_date='2020-01-30')
+async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
+    return await queue.enqueue_job('send_calendar_notifications', user_id, first,
+                                   _job_id=make_calendar_notification_task_id(
+                                       send_calendar_notifications,
+                                       user_id,
+                                       first.show.ids.trakt,
+                                       first_aired,
+                                   ),
+                                   _defer_until=first_aired)
+
+
+async def schedule_multi(*, queue, user_id, first, first_aired, group, **kwargs):
+    return await queue.enqueue_job('send_calendar_multi_notifications', user_id, group,
+                                   _job_id=make_calendar_notification_task_id(
+                                       send_calendar_notifications,
+                                       user_id,
+                                       first.show.ids.trakt,
+                                       first_aired,
+                                       *(e.episode.ids.trakt for e in group)
+                                   ),
+                                   _defer_until=first_aired)
+
+
+async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, user_id, multi=False, delay=1):
+    episodes = await client.calendar_shows(extended=True, start_date='2020-01-30', days=2)
     groups = group_by_show(episodes)
     for group in groups:
         first = group[0]
-        first_aired = datetime.utcnow() + timedelta(seconds=1)
+        first_aired = datetime.utcnow() + timedelta(seconds=delay)
         if len(group) == 1 and not multi:
-            await queue.enqueue_job('send_calendar_notifications', user_id, first, _defer_until=first_aired)
+            for i in range(3):
+                print(await schedule_single(**locals()))
             break
         if len(group) > 1 and multi:
-            await queue.enqueue_job('send_calendar_multi_notifications', user_id, group, _defer_until=first_aired)
+            for i in range(3):
+                print(await schedule_multi(**locals()))
             break
 
 
@@ -44,9 +69,9 @@ async def schedule_calendar_notifications(ctx: dict, **kwargs):
             await schedule_calendar_notification(client, queue, user_id, **kwargs)
 
 
-async def test_calendar(multi: bool):
+async def test_calendar(**kwargs):
     async with ctx_manager() as ctx:
-        await schedule_calendar_notifications(ctx, multi=multi)
+        await schedule_calendar_notifications(ctx, **kwargs)
     worker = Worker(
         (send_calendar_notifications, send_calendar_multi_notifications),
         keep_result=0,
@@ -65,18 +90,42 @@ async def test_refresh_token(user_id):
         store.save_tokens(user_id, tokens)
 
 
+async def test_task(ctx: dict):
+    print('test')
+
+
+async def test_same_time_schedule():
+    async with ctx_manager() as ctx:
+        queue: ArqRedis = ctx['redis']
+        dt = datetime.utcnow() + timedelta(seconds=2)
+        await queue.enqueue_job('test_task', _job_id='test_task1', _defer_until=dt)
+        await queue.enqueue_job('test_task', _job_id='test_task1', _defer_until=dt)
+        assert len(await queue.queued_jobs()) == 1
+
+    worker = Worker(
+        (test_task,),
+        keep_result=0,
+        burst=True,
+    )
+    await worker.async_run()
+
+
 async def main():
     parser = ArgumentParser()
     sub = parser.add_subparsers(dest='sub')
     p_cal = sub.add_parser('calendar', aliases=('cal',))
     p_cal.add_argument('--multi', '-m', action='store_true')
+    p_cal.add_argument('--delay', '-d', type=int, default=1)
     p_ref = sub.add_parser('refresh')
     p_ref.add_argument('user_id', type=int)
+    p_same = sub.add_parser('same')
     args = parser.parse_args()
     if args.sub in ('cal', 'calendar'):
-        await test_calendar(args.multi)
+        await test_calendar(multi=args.multi, delay=args.delay)
     elif args.sub == 'refresh':
         await test_refresh_token(args.user_id)
+    elif args.sub == 'same':
+        await test_same_time_schedule()
 
 
 if __name__ == '__main__':

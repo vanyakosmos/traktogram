@@ -11,7 +11,7 @@ from traktogram.markup import calendar_multi_notification_markup, calendar_notif
 from traktogram.store import store
 from traktogram.trakt import CalendarEpisode, TraktClient
 from traktogram.updater import bot
-from traktogram.utils import group_by_show
+from traktogram.utils import group_by_show, make_calendar_notification_task_id
 
 
 logger = logging.getLogger(__name__)
@@ -53,19 +53,30 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
     for group in groups:
         first = group[0]
         if len(group) == 1:
-            # todo: don't schedule if job already exists
-            await queue.enqueue_job('send_calendar_notifications',
-                                    user_id, first, _defer_until=first.first_aired)
+            await queue.enqueue_job('send_calendar_notifications', user_id, first,
+                                    _job_id=make_calendar_notification_task_id(
+                                        send_calendar_notifications,
+                                        user_id,
+                                        first.show.ids.trakt,
+                                        first.first_aired,
+                                    ),
+                                    _defer_until=first.first_aired)
         else:
-            await queue.enqueue_job('send_calendar_multi_notifications',
-                                    user_id, group, _defer_until=first.first_aired)
+            await queue.enqueue_job('send_calendar_multi_notifications', user_id, group,
+                                    _job_id=make_calendar_notification_task_id(
+                                        send_calendar_notifications,
+                                        user_id,
+                                        first.show.ids.trakt,
+                                        first.first_aired,
+                                        *(e.episode.ids.trakt for e in group)
+                                    ),
+                                    _defer_until=first.first_aired)
     logger.debug(f"scheduled {len(groups)} notifications")
 
 
 async def schedule_calendar_notifications(ctx: dict):
     queue: ArqRedis = ctx['redis']
     async with TraktClient() as client:
-        # todo: send multiple requests in batch
         for user_id, access_token in store.user_access_tokens_iter():
             client.auth(access_token)
             await schedule_calendar_notification(client, queue, user_id)
