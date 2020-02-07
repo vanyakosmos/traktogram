@@ -1,7 +1,9 @@
 import asyncio
 import logging.config
+from argparse import ArgumentParser
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
+from pprint import pprint
 
 from arq import ArqRedis, Worker, create_pool
 from arq.connections import RedisSettings
@@ -37,15 +39,14 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
 async def schedule_calendar_notifications(ctx: dict, **kwargs):
     queue: ArqRedis = ctx['redis']
     async with TraktClient() as client:
-        for user_id, access_token in store.users_tokens_iter():
+        for user_id, access_token in store.user_access_tokens_iter():
             client.auth(access_token)
             await schedule_calendar_notification(client, queue, user_id, **kwargs)
 
 
-async def main():
-    logging.config.dictConfig(LOGGING_CONFIG)
+async def test_calendar(multi: bool):
     async with ctx_manager() as ctx:
-        await schedule_calendar_notifications(ctx, multi=False)
+        await schedule_calendar_notifications(ctx, multi=multi)
     worker = Worker(
         (send_calendar_notifications, send_calendar_multi_notifications),
         keep_result=0,
@@ -54,5 +55,30 @@ async def main():
     await worker.async_run()
 
 
+async def test_refresh_token(user_id):
+    async with TraktClient() as client:
+        tokens = store.get_tokens(user_id)
+        pprint(tokens)
+        client.auth(tokens['access_token'])
+        tokens = await client.refresh_token(tokens['refresh_token'])
+        pprint(tokens)
+        store.save_tokens(user_id, tokens)
+
+
+async def main():
+    parser = ArgumentParser()
+    sub = parser.add_subparsers(dest='sub')
+    p_cal = sub.add_parser('calendar', aliases=('cal',))
+    p_cal.add_argument('--multi', '-m', action='store_true')
+    p_ref = sub.add_parser('refresh')
+    p_ref.add_argument('user_id', type=int)
+    args = parser.parse_args()
+    if args.sub in ('cal', 'calendar'):
+        await test_calendar(args.multi)
+    elif args.sub == 'refresh':
+        await test_refresh_token(args.user_id)
+
+
 if __name__ == '__main__':
+    logging.config.dictConfig(LOGGING_CONFIG)
     asyncio.get_event_loop().run_until_complete(main())

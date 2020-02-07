@@ -57,7 +57,7 @@ async def auth_handler(message: Message):
             await client.close()
             return
         if ok:
-            store.save_creds(user_id, data)
+            store.save_tokens(user_id, data)
             await reply.edit_text("✅ successfully authenticated")
             break
         else:

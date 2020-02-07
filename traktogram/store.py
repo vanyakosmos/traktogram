@@ -18,10 +18,10 @@ class RedisStore:
     def is_auth(self, user_id):
         self.client.hexists(self.key_tokens, str(user_id))
 
-    def save_creds(self, user_id, tokens):
+    def save_tokens(self, user_id, tokens):
         self.client.hset(self.key_tokens, str(user_id), json.dumps(tokens))
 
-    def load_creds(self, user_id):
+    def get_tokens(self, user_id):
         data = self.client.hget(self.key_tokens, str(user_id))
         return json.loads(data.decode())
 
@@ -29,11 +29,15 @@ class RedisStore:
         for user_id, tokens in self.client.hscan_iter(self.key_tokens):
             yield (
                 user_id.decode(),
-                json.loads(tokens.decode())['access_token'],
+                json.loads(tokens.decode()),
             )
 
+    def user_access_tokens_iter(self):
+        for user_id, tokens in self.users_tokens_iter():
+            yield user_id, tokens['access_token']
+
     def get_access_token(self, user_id):
-        tokens = self.load_creds(user_id)
+        tokens = self.get_tokens(user_id)
         return tokens['access_token']
 
 

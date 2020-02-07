@@ -95,6 +95,18 @@ class TraktClient:
                 yield False, time_left
             await asyncio.sleep(data['interval'])
 
+    async def refresh_token(self, refresh_token):
+        url = self.base / 'oauth/token'
+        r = await self.session.post(url, json={
+            'refresh_token': refresh_token,
+            'client_id': TRAKT_CLIENT_ID,
+            'client_secret': TRAKT_CLIENT_SECRET,
+            'redirect_uri': 'urn:ietf:wg:oauth:2.0:oob',
+            'grant_type': 'refresh_token'
+        })
+        data = await r.json()
+        return data
+
     async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarEpisode]:
         if not start_date:
             start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
