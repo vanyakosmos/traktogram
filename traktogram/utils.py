@@ -13,12 +13,21 @@ def dedent(text: str):
     return textwrap.dedent(text).strip('\n')
 
 
-def group_by_show(episodes: List[CalendarEpisode]) -> List[List[CalendarEpisode]]:
+def group_by_show(episodes: List[CalendarEpisode], max_group=6) -> List[List[CalendarEpisode]]:
+    """
+    :param episodes:
+    :param max_group: max number of elements in group
+    :return:
+    """
     groups = defaultdict(list)
+    splitter = defaultdict(int)
     for e in episodes:
-        key = (e.show.ids.trakt, e.first_aired)
+        show_key = (e.show.ids.trakt, e.first_aired)
+        key = (*show_key, splitter[show_key])
+        if len(groups[key]) >= max_group:
+            splitter[show_key] += 1
+            key = (*show_key, splitter[show_key])
         groups[key].append(e)
-    # todo: split big groups
     return list(groups.values())
 
 
