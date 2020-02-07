@@ -1,6 +1,8 @@
+from datetime import timedelta
+
 import pytest
 
-from traktogram.utils import group_by_show
+from traktogram.utils import group_by_show, split_group
 from traktogram.trakt import CalendarEpisode
 
 
@@ -62,5 +64,29 @@ class TestGroupByShow:
             self.make_ce('123', 1, 4),
             self.make_ce('123', 1, 5),
         ]
-        groups = group_by_show(es, max_group=3)
-        assert groups == [[es[0], es[1], es[3]], [es[2]], [es[4], es[5]]]
+        groups = group_by_show(es, max_num=3)
+        assert groups == [[es[0], es[1], es[3]], [es[4], es[5]], [es[2]]]
+
+    def test_postpone(self):
+        es = [
+            self.make_ce('123', 1, 1),
+            self.make_ce('123', 1, 2),
+            self.make_ce('123', 1, 3),
+        ]
+        groups = group_by_show(es, max_num=2)
+        assert groups == [[es[0], es[1]], [es[2]]]
+        assert es[0].first_aired + timedelta(seconds=1) == es[2].first_aired
+
+
+class TestSplitGroup:
+    def test_simple(self):
+        gs = split_group([1, 2, 3], max_num=4)
+        assert gs == [[1, 2, 3]]
+
+    def test_two(self):
+        gs = split_group([1, 2, 3, 4], max_num=3)
+        assert gs == [[1, 2], [3, 4]]
+
+    def test_three(self):
+        gs = split_group([1, 2, 3, 4, 5, 6, 7], max_num=3)
+        assert gs == [[1, 2, 3], [4, 5], [6, 7]]

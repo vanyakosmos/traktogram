@@ -33,24 +33,28 @@ async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
                                    _defer_until=first_aired)
 
 
-async def schedule_multi(*, queue, user_id, first, first_aired, group, **kwargs):
+async def schedule_multi(*, queue, user_id, first, group, **kwargs):
     return await queue.enqueue_job('send_calendar_multi_notifications', user_id, group,
                                    _job_id=make_calendar_notification_task_id(
                                        send_calendar_notifications,
                                        user_id,
                                        first.show.ids.trakt,
-                                       first_aired,
+                                       first.first_aired,
                                        *(e.episode.ids.trakt for e in group)
                                    ),
-                                   _defer_until=first_aired)
+                                   _defer_until=first.first_aired)
 
 
 async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, user_id, multi=False, delay=1):
     episodes = await client.calendar_shows(extended=True, start_date='2020-01-30', days=2)
-    groups = group_by_show(episodes)
+    first_aired = datetime.utcnow() + timedelta(seconds=delay)
+    for e in episodes:
+        e.first_aired = first_aired
+    groups = group_by_show(episodes, max_num=3)
+    print(len(groups))
+    print(list(map(len, groups)))
     for group in groups:
         first = group[0]
-        first_aired = datetime.utcnow() + timedelta(seconds=delay)
         if len(group) == 1 and not multi:
             for i in range(3):
                 print(await schedule_single(**locals()))
@@ -58,7 +62,6 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
         if len(group) > 1 and multi:
             for i in range(3):
                 print(await schedule_multi(**locals()))
-            break
 
 
 async def schedule_calendar_notifications(ctx: dict, **kwargs):

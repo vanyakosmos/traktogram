@@ -1,7 +1,8 @@
+import math
 import string
 import textwrap
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Callable, Union
 
 from traktogram.trakt import CalendarEpisode
@@ -14,22 +15,52 @@ def dedent(text: str):
     return textwrap.dedent(text).strip('\n')
 
 
-def group_by_show(episodes: List[CalendarEpisode], max_group=6) -> List[List[CalendarEpisode]]:
+def split_group(group: list, max_num=8) -> List[List]:
     """
-    :param episodes:
-    :param max_group: max number of elements in group
+    Split ≈evenly into subgroups with at most `max_num` elements.
+    Example::
+
+        max_num = 8
+        > 8 -> 8
+        > 9 -> 5 4
+        > 14 -> 7 7
+        > 19 -> 7 6 6
+    """
+    num = math.ceil(len(group) / max_num)  # number of groups
+    base = len(group) // num  # base number in each group
+    lens = [base] * num  # sizes of each group
+    for i in range(len(group) - base * num):
+        lens[i] += 1
+    res = []
+    a = 0  # anchor
+    for l in lens:
+        res.append(group[a:a + l])
+        a += l
+    return res
+
+
+def group_by_show(episodes: List[CalendarEpisode], max_num=8) -> List[List[CalendarEpisode]]:
+    """
+    Group episodes by show and datetime when they were aired.
+    Split big groups into smaller ones.
+    Slightly postpone episodes from big groups so that they will be scheduled in order.
+
+    :param episodes: episodes to group
+    :param max_num: max number of elements in group
     :return:
     """
     groups = defaultdict(list)
-    splitter = defaultdict(int)
     for e in episodes:
-        show_key = (e.show.ids.trakt, e.first_aired)
-        key = (*show_key, splitter[show_key])
-        if len(groups[key]) >= max_group:
-            splitter[show_key] += 1
-            key = (*show_key, splitter[show_key])
+        key = (e.show.ids.trakt, e.first_aired)
         groups[key].append(e)
-    return list(groups.values())
+    res = []
+    for group in groups.values():
+        gs = split_group(group, max_num)
+        for i, g in enumerate(gs):
+            for ce in g:
+                ce.first_aired += timedelta(seconds=1)
+        res.extend(gs)
+    return res
 
 
 def compress_int(n: int, base=32):

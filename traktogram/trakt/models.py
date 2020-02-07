@@ -70,7 +70,7 @@ class Episode(Model):
         return None, None
 
 
-@immutable
+@mutable
 class ShowEpisode(Model):
     show = ChildField(Show)
     episode = ChildField(Episode)
@@ -82,6 +82,6 @@ class ShowEpisode(Model):
         return se
 
 
-@immutable
+@mutable
 class CalendarEpisode(ShowEpisode):
     first_aired = DateTimeField()
