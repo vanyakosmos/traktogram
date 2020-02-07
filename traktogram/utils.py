@@ -3,7 +3,7 @@ import textwrap
 from collections import defaultdict
 from typing import List
 
-from traktogram.trakt import CalendarShow
+from traktogram.trakt import CalendarEpisode
 
 
 digs = string.digits + string.ascii_letters
@@ -13,7 +13,7 @@ def dedent(text: str):
     return textwrap.dedent(text).strip('\n')
 
 
-def group_by_show(episodes: List[CalendarShow]) -> List[List[CalendarShow]]:
+def group_by_show(episodes: List[CalendarEpisode]) -> List[List[CalendarEpisode]]:
     groups = defaultdict(list)
     for e in episodes:
         key = (e.show.ids.trakt, e.first_aired)

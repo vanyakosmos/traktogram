@@ -7,7 +7,7 @@ from typing import List, Optional
 import aiohttp
 from yarl import URL
 
-from .models import CalendarShow, Episode, ShowEpisode
+from .models import CalendarEpisode, Episode, ShowEpisode
 from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 
 
@@ -95,7 +95,7 @@ class TraktClient:
                 yield False, time_left
             await asyncio.sleep(data['interval'])
 
-    async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarShow]:
+    async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarEpisode]:
         if not start_date:
             start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
         url = self.base / f'calendars/my/shows/{start_date}/{days}'
@@ -103,7 +103,7 @@ class TraktClient:
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
-        return [CalendarShow.from_dict(e) for e in data]
+        return [CalendarEpisode.from_dict(e) for e in data]
 
     async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
         url = self.base / f'shows/{show_id}/seasons/{season}/episodes/{episode}'

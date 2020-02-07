@@ -8,7 +8,7 @@ from arq.connections import ArqRedis
 from traktogram import rendering
 from traktogram.config import LOGGING_CONFIG
 from traktogram.store import store
-from traktogram.trakt import CalendarShow, TraktClient
+from traktogram.trakt import CalendarEpisode, TraktClient
 from traktogram.updater import bot
 from traktogram.utils import group_by_show
 from traktogram.markup import calendar_notification_markup, calendar_multi_notification_markup
@@ -17,23 +17,23 @@ from traktogram.markup import calendar_notification_markup, calendar_multi_notif
 logger = logging.getLogger(__name__)
 
 
-async def send_airing_episode(ctx: dict, user_id: str, cs: CalendarShow):
+async def send_airing_episode(ctx: dict, user_id: str, ce: CalendarEpisode):
     text = rendering.render_html(
-        'new_episode_message',
-        show=cs.show,
-        episode=cs.episode,
+        'calendar_notification',
+        show=ce.show,
+        episode=ce.episode,
     )
     client: TraktClient = ctx['trakt']
-    watched = await client.watched(cs.episode.ids.trakt)
-    keyboard_markup = calendar_notification_markup(cs, watched=watched)
+    watched = await client.watched(ce.episode.ids.trakt)
+    keyboard_markup = calendar_notification_markup(ce, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
-async def send_airing_episodes(ctx: dict, user_id: str, episodes: List[CalendarShow]):
+async def send_airing_episodes(ctx: dict, user_id: str, episodes: List[CalendarEpisode]):
     first = episodes[0]
     show = first.show
     text = rendering.render_html(
-        'new_episodes_message',
+        'calendar_multi_notification',
         show=show,
         episodes=[cs.episode for cs in episodes],
     )

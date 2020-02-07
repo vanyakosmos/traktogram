@@ -1,2 +1,2 @@
-from .models import CalendarShow, Episode, IDs
+from .models import CalendarEpisode, Episode, IDs
 from .client import TraktClient

@@ -41,7 +41,7 @@ class TestMessages:
             'show': {
                 'title': 'show',
                 'year': 2020,
-                'ids': {'trakt': 1},
+                'ids': {'trakt': 1, 'slug': 'slug'},
             },
             'episode': {
                 'title': 'episode',
@@ -51,13 +51,12 @@ class TestMessages:
             }
         })
         text = render_html(
-            'new_episode_message',
+            'calendar_notification',
             show=se.show,
             episode=se.episode,
-            episode_url='https://example.com',
         )
         assert text == dedent("""
-            <b>show</b> 1x1 <a href="https://example.com">"episode"</a>
+            <b>show</b> 1x1 <a href="https://trakt.tv/shows/slug/seasons/1/episodes/1">"episode"</a>
             Season 1 / Episode 1
         """)
 
@@ -66,7 +65,7 @@ class TestMessages:
             'show': {
                 'title': 'show',
                 'year': 2020,
-                'ids': {'trakt': 1},
+                'ids': {'trakt': 1, 'slug': 'slug'},
             },
             'episode': {
                 'title': 'episode',
@@ -76,13 +75,13 @@ class TestMessages:
             }
         })
         text = render_html(
-            'new_episodes_message',
+            'calendar_multi_notification',
             show=se.show,
             episodes=[se.episode, se.episode],
         )
         assert text == dedent("""
             <b>show</b>
             
-            1x1 <a href="">"episode"</a> 
-            1x1 <a href="">"episode"</a>
+            1x1 <a href="https://trakt.tv/shows/slug/seasons/1/episodes/1">"episode"</a>
+            1x1 <a href="https://trakt.tv/shows/slug/seasons/1/episodes/1">"episode"</a>
         """)

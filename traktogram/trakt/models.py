@@ -1,75 +1,67 @@
 import re
-from datetime import datetime
+from typing import Type, TypeVar
 
-from attr import attrib, attrs
+from related import ChildField, DateTimeField, IntegerField, StringField, immutable, mutable, to_model
 from yarl import URL
 
 
-def nested_attrib(cls):
-    def converter(kw):
-        if hasattr(cls, 'from_dict'):
-            return cls.from_dict(kw)
-        return cls(**kw)
-
-    return attrib(type=cls, converter=converter)
+T = TypeVar('T')
 
 
-def datetime_attrib(**kwargs):
-    return attrib(type=datetime, converter=lambda s: datetime.strptime(s, "%Y-%m-%dT%H:%M:%S.%f%z"), **kwargs)
-
-
-# noinspection PyArgumentList,PyUnresolvedReferences
 class Model:
     @classmethod
-    def from_dict(cls, data: dict = None, **kwargs):
+    def from_dict(cls: Type[T], data: dict = None, **kwargs) -> T:
         """Factory that allows to pass extra kwrags without errors."""
         data = data.copy() if data else {}
         data.update(kwargs)
-        return cls(**{
-            a.name: data[a.name]
-            for a in cls.__attrs_attrs__
-            if a.name in data
-        })
+        return to_model(cls, data)
 
 
-@attrs
+@immutable
 class IDs(Model):
-    trakt = attrib(type=int)
-    slug = attrib(type=str, default=None)
+    trakt = IntegerField()
 
 
-@attrs
+@immutable
+class ShowIDs(IDs):
+    slug = StringField()
+
+
+@immutable
 class Show(Model):
-    ids = nested_attrib(IDs)
-    title = attrib(type=str)
-    year = attrib(type=int)
-    language = attrib(type=str, default=None)
+    ids = ChildField(ShowIDs)
+    title = StringField()
+    year = IntegerField()
+    language = StringField(required=False)
 
     @property
     def url(self):
         return URL('https://trakt.tv/shows') / self.ids.slug
 
 
-@attrs
+@mutable()
 class Episode(Model):
-    ids = nested_attrib(IDs)
-    title = attrib(type=str)
-    season = attrib(type=int)
-    number = attrib(type=int)
-    number_abs = attrib(type=int, default=None)
-    show = attrib(type=Show, default=None)
-    watched = attrib(type=bool, default=False)
+    ids = ChildField(IDs)
+    title = StringField()
+    season = IntegerField()
+    number = IntegerField()
+    number_abs = IntegerField(required=False)
+    show = ChildField(Show, required=False)
 
     @property
     def season_url(self):
-        return self.show.url / 'seasons' / str(self.season)
+        if self.show:
+            return self.show.url / 'seasons' / str(self.season)
 
     @property
     def url(self):
-        return self.season_url / 'episodes' / str(self.number)
+        if self.show:
+            return self.season_url / 'episodes' / str(self.number)
 
     @property
     def watch_url(self):
+        if self.show is None:
+            return None, None
         if self.show.language == 'ja':
             slug = self.show.title.lower()
             slug = re.sub('[^a-z ]', '', slug).strip()
@@ -78,19 +70,18 @@ class Episode(Model):
         return None, None
 
 
-@attrs
+@immutable
 class ShowEpisode(Model):
-    show = nested_attrib(Show)
-    episode = nested_attrib(Episode)
+    show = ChildField(Show)
+    episode = ChildField(Episode)
 
     @classmethod
-    def from_dict(cls, data: dict = None, **kwargs):
-        # noinspection PyTypeChecker
-        se: ShowEpisode = super(ShowEpisode, cls).from_dict(data, **kwargs)
+    def from_dict(cls: Type[T], data: dict = None, **kwargs) -> T:
+        se = super(ShowEpisode, cls).from_dict(data, **kwargs)
         se.episode.show = se.show
         return se
 
 
-@attrs
-class CalendarShow(ShowEpisode):
-    first_aired = datetime_attrib()
+@immutable
+class CalendarEpisode(ShowEpisode):
+    first_aired = DateTimeField()
