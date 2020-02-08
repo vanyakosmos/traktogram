@@ -9,9 +9,8 @@ from .markup import (
     calendar_multi_notification_markup, calendar_notification_markup, decode_ids, episode_cd,
     episodes_cd
 )
-from .store import state, store
 from .trakt import TraktClient
-from .updater import command_handler, commands_help, dp
+from .updater import command_handler, commands_help, dp, storage
 
 
 logger = logging.getLogger(__name__)
@@ -19,10 +18,11 @@ logger = logging.getLogger(__name__)
 
 @command_handler('start', help="start")
 async def start_handler(message: Message):
+    logger.debug("start")
     await message.answer("start")
 
 
-@command_handler('help', help="show this message")
+@command_handler('help', help="show this message", state='*')
 async def help_handler(message: Message):
     lines = ["Available commands:"]
     for cmd, help_text in commands_help.items():
@@ -30,19 +30,16 @@ async def help_handler(message: Message):
     await message.answer("\n".join(lines))
 
 
-@command_handler('auth', help="log into trakt.tv", use_async=True)
-async def auth_handler(message: Message):
+@command_handler('cancel', help="cancel everything", state='*')
+async def help_handler(message: Message):
+    await asyncio.gather(
+        storage.finish(user=message.from_user.id),
+        message.answer("Whatever it was, it was canceled."),
+    )
+
+
+async def process_auth_flow(client: TraktClient, message: Message):
     user_id = message.from_user.id
-
-    if store.is_auth(user_id):
-        text = "You are already authenticated. Do you want to /logout?"
-        await message.answer(text)
-        return
-
-    state[user_id]['state'] = 'auth'
-    state[user_id]['context'] = message.message_id
-
-    client = TraktClient()
     flow = client.device_auth_flow()
     data = await flow.__anext__()
     code = data['user_code']
@@ -51,22 +48,52 @@ async def auth_handler(message: Message):
     reply_kwargs = dict(disable_web_page_preview=True)
     reply = await message.answer(msg_text, **reply_kwargs)
     async for ok, data in flow:
-        if state[user_id]['context'] != message.message_id:
-            logger.debug("auth canceled because another auth flow has been initiated")
-            await reply.delete()
-            await client.close()
+        state = await storage.get_state(user=user_id)
+        if state != 'auth':
+            await reply.edit_text("❌ canceled", **reply_kwargs)
             return
         if ok:
-            store.save_tokens(user_id, data)
-            await reply.edit_text("✅ successfully authenticated")
+            await asyncio.gather(
+                storage.save_creds(user_id, data),
+                reply.edit_text("✅ successfully authenticated"),
+            )
             break
         else:
-            time_left = f"⏱ {int(data)} seconds left"
-            text = render_html('auth_message', url=url, code=code, extra=time_left)
+            text = render_html('auth_message', url=url, code=code, time_left=data)
             await reply.edit_text(text, **reply_kwargs)
     else:
         await reply.edit_text("❌ failed to authenticated in time")
-    await client.close()
+
+
+@command_handler('auth', help="log into trakt.tv")
+async def auth_handler(message: Message):
+    logger.debug("auth command")
+    user_id = message.from_user.id
+
+    if await storage.has_creds(user_id):
+        logger.debug("user already authenticated")
+        text = "You are already authenticated. Do you want to /logout?"
+        await message.answer(text)
+        return
+
+    await storage.set_state(user=user_id, state='auth')
+    async with TraktClient() as client:
+        try:
+            await process_auth_flow(client, message)
+        finally:
+            await storage.finish(user=user_id)
+
+
+@command_handler('logout', help="logout")
+async def help_handler(message: Message):
+    user_id = message.from_user.id
+    if await storage.has_creds(user_id):
+        await asyncio.gather(
+            storage.remove_creds(message.from_user.id),
+            message.answer("Successfully logged out."),
+        )
+    else:
+        await message.answer("You weren't logged in.")
 
 
 async def toggle_watched_status(client: TraktClient, episode_id, watched: bool):
@@ -82,8 +109,8 @@ async def toggle_watched_status(client: TraktClient, episode_id, watched: bool):
 async def episode_watched_cb_handler(query: CallbackQuery, callback_data: dict):
     episode_id = callback_data['id']
     async with TraktClient() as client:
-        access_token = store.get_access_token(query.from_user.id)
-        client.auth(access_token)
+        creds = await storage.get_creds(query.from_user.id)
+        client.auth(creds.access_token)
         watched = await client.watched(episode_id)
         watched = await toggle_watched_status(client, episode_id, watched)
         se = await client.get_episode(episode_id, extended=True)
@@ -128,8 +155,8 @@ class CalendarMultiNotificationHelper:
     @asynccontextmanager
     async def fetch_episode_data_context(self):
         async with TraktClient() as client:
-            access_token = store.get_access_token(self.query.from_user.id)
-            client.auth(access_token)
+            creds = await storage.get_creds(self.query.from_user.id)
+            client.auth(creds.access_token)
             self.watched = await client.watched(self.episode_id)
             yield client
             self.se = await client.get_episode(self.episode_id)

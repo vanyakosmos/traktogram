@@ -27,6 +27,5 @@ class Client:
         loop.create_task(self.close_async())
 
     async def close_async(self):
-        logger.debug(f"closing {self.__class__.__name__}...")
         await self.session.close()
         logger.debug(f"closed {self.__class__.__name__}")

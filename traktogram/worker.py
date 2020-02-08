@@ -8,9 +8,8 @@ from arq.connections import ArqRedis
 from traktogram import rendering
 from traktogram.config import LOGGING_CONFIG
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
-from traktogram.store import store
 from traktogram.trakt import CalendarEpisode, TraktClient
-from traktogram.updater import bot
+from traktogram.updater import bot, storage
 from traktogram.utils import group_by_show, make_calendar_notification_task_id
 
 
@@ -24,7 +23,8 @@ async def send_calendar_notifications(ctx: dict, user_id: str, ce: CalendarEpiso
         episode=ce.episode,
     )
     async with TraktClient() as client:
-        client.auth(store.get_access_token(user_id))
+        creds = await storage.get_creds(user_id)
+        client.auth(creds.access_token)
         watched = await client.watched(ce.episode.ids.trakt)
     keyboard_markup = await calendar_notification_markup(ce, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
@@ -39,7 +39,8 @@ async def send_calendar_multi_notifications(ctx: dict, user_id: str, episodes: L
         episodes=[cs.episode for cs in episodes],
     )
     async with TraktClient() as client:
-        client.auth(store.get_access_token(user_id))
+        creds = await storage.get_creds(user_id)
+        client.auth(creds.access_token)
         watched = await client.watched(first.episode.ids.trakt)
     episodes_ids = [cs.episode.ids.trakt for cs in episodes]
     keyboard_markup = calendar_multi_notification_markup(first, episodes_ids, watched)
@@ -77,17 +78,17 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
 async def schedule_calendar_notifications(ctx: dict):
     queue: ArqRedis = ctx['redis']
     async with TraktClient() as client:
-        for user_id, access_token in store.user_access_tokens_iter():
-            client.auth(access_token)
+        async for user_id, creds in storage.creds_iter():
+            client.auth(creds.access_token)
             await schedule_calendar_notification(client, queue, user_id)
 
 
 async def schedule_tokens_refresh(ctx: dict):
     async with TraktClient() as client:
-        for user_id, tokens in store.users_tokens_iter():
-            client.auth(tokens['access_token'])
-            tokens = await client.refresh_token(tokens['refresh_token'])
-            store.save_tokens(user_id, tokens)
+        async for user_id, creds in storage.creds_iter():
+            client.auth(creds.access_token)
+            tokens = await client.refresh_token(creds.refresh_token)
+            await storage.save_creds(user_id, tokens)
 
 
 def main():

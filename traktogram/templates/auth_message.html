@@ -1,8 +1,8 @@
 Authorize at {{ url }} using code below
-<br/>
+<br/><br/>
 <pre>{{ code }}</pre>
 
-{% if extra %}
+{% if time_left %}
   <br/><br/>
-  {{ extra }}
+  ⏱ {{ time_left|round|int }} seconds left - use /cancel to stop auth flow
 {% endif %}

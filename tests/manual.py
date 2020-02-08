@@ -9,10 +9,10 @@ from arq import ArqRedis, Worker, create_pool
 from arq.connections import RedisSettings
 
 from traktogram.config import LOGGING_CONFIG
-from traktogram.store import store
 from traktogram.trakt import TraktClient
 from traktogram.utils import group_by_show, make_calendar_notification_task_id
 from traktogram.worker import send_calendar_multi_notifications, send_calendar_notifications
+from traktogram.updater import storage
 
 
 @asynccontextmanager
@@ -67,8 +67,8 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
 async def schedule_calendar_notifications(ctx: dict, **kwargs):
     queue: ArqRedis = ctx['redis']
     async with TraktClient() as client:
-        for user_id, access_token in store.user_access_tokens_iter():
-            client.auth(access_token)
+        async for user_id, creds in storage.creds_iter():
+            client.auth(creds.access_token)
             await schedule_calendar_notification(client, queue, user_id, **kwargs)
 
 
@@ -85,12 +85,12 @@ async def test_calendar(**kwargs):
 
 async def test_refresh_token(user_id):
     async with TraktClient() as client:
-        tokens = store.get_tokens(user_id)
+        creds = await storage.get_creds(user_id)
+        pprint(creds.to_dict())
+        client.auth(creds.access_token)
+        tokens = await client.refresh_token(creds.refresh_token)
         pprint(tokens)
-        client.auth(tokens['access_token'])
-        tokens = await client.refresh_token(tokens['refresh_token'])
-        pprint(tokens)
-        store.save_tokens(user_id, tokens)
+        await storage.save_creds(user_id, tokens)
 
 
 async def test_task(ctx: dict):
