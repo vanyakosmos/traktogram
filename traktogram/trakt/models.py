@@ -1,20 +1,10 @@
-import re
-from typing import Type, TypeVar
+from typing import Type
 
-from related import ChildField, DateTimeField, IntegerField, StringField, immutable, mutable, to_model
+from related import ChildField, DateTimeField, IntegerField, StringField, immutable, mutable
 from yarl import URL
 
-
-T = TypeVar('T')
-
-
-class Model:
-    @classmethod
-    def from_dict(cls: Type[T], data: dict = None, **kwargs) -> T:
-        """Factory that allows to pass extra kwrags without errors."""
-        data = data.copy() if data else {}
-        data.update(kwargs)
-        return to_model(cls, data)
+from traktogram.models import Model, ModelType
+from .utils import get_9anime_url
 
 
 @immutable
@@ -59,14 +49,12 @@ class Episode(Model):
             return self.season_url / 'episodes' / str(self.number)
 
     @property
-    def watch_url(self):
+    async def watch_url(self):
         if self.show is None:
             return None, None
         if self.show.language == 'ja':
-            slug = self.show.title.lower()
-            slug = re.sub('[^a-z ]', '', slug).strip()
-            slug = '-'.join(slug.split())
-            return 'animedao', f'https://animedao.com/watch-online/{slug}-episode-{self.number}'
+            url = await get_9anime_url(self.show.title)
+            return '9anime', url
         return None, None
 
 
@@ -76,7 +64,7 @@ class ShowEpisode(Model):
     episode = ChildField(Episode)
 
     @classmethod
-    def from_dict(cls: Type[T], data: dict = None, **kwargs) -> T:
+    def from_dict(cls: Type[ModelType], data: dict = None, **kwargs) -> ModelType:
         se = super(ShowEpisode, cls).from_dict(data, **kwargs)
         se.episode.show = se.show
         return se

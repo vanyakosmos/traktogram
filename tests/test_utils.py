@@ -2,8 +2,8 @@ from datetime import timedelta
 
 import pytest
 
-from traktogram.utils import group_by_show, split_group
 from traktogram.trakt import CalendarEpisode
+from traktogram.utils import group_by_show, split_group
 
 
 @pytest.fixture('class')
@@ -23,7 +23,7 @@ def make_calendar_episode(request):
             },
             'first_aired': first_aired,
         })
-    
+
     meth = staticmethod(make)
     request.cls.make_ce = meth
     request.cls.make_calendar_episode = meth

@@ -3,7 +3,7 @@ import string
 import textwrap
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import List, Callable, Union
+from typing import Callable, List, Union
 
 from traktogram.trakt import CalendarEpisode
 
@@ -58,7 +58,7 @@ def group_by_show(episodes: List[CalendarEpisode], max_num=8) -> List[List[Calen
         gs = split_group(group, max_num)
         for i, g in enumerate(gs):
             for ce in g:
-                ce.first_aired += timedelta(seconds=1)
+                ce.first_aired += timedelta(seconds=i)
         res.extend(gs)
     return res
 

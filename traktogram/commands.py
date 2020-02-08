@@ -89,7 +89,7 @@ async def episode_watched_cb_handler(query: CallbackQuery, callback_data: dict):
         se = await client.get_episode(episode_id, extended=True)
         logger.debug(se)
     # update keyboard
-    markup = calendar_notification_markup(se, watched=watched)
+    markup = await calendar_notification_markup(se, watched=watched)
     await asyncio.gather(
         query.message.edit_reply_markup(markup),
         query.answer("marked as watched" if watched else "unwatched")

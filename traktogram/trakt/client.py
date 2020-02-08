@@ -4,9 +4,7 @@ from datetime import datetime
 from time import time
 from typing import List, Optional
 
-import aiohttp
-from yarl import URL
-
+from traktogram.client import Client
 from .models import CalendarEpisode, Episode, ShowEpisode
 from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 
@@ -14,17 +12,9 @@ from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 logger = logging.getLogger(__name__)
 
 
-class TraktClient:
+class TraktClient(Client):
     def __init__(self):
-        self.base = URL('https://api.trakt.tv')
-        self.session = aiohttp.ClientSession()
-        self.access_token = None
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
+        super().__init__('https://api.trakt.tv')
 
     @property
     def headers(self):
@@ -173,6 +163,3 @@ class TraktClient:
         r = await self.session.post(url, json=data, headers=self.headers)
         data = await r.json()
         return data
-
-    async def close(self):
-        await self.session.close()

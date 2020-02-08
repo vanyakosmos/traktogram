@@ -26,7 +26,7 @@ async def send_calendar_notifications(ctx: dict, user_id: str, ce: CalendarEpiso
     async with TraktClient() as client:
         client.auth(store.get_access_token(user_id))
         watched = await client.watched(ce.episode.ids.trakt)
-    keyboard_markup = calendar_notification_markup(ce, watched=watched)
+    keyboard_markup = await calendar_notification_markup(ce, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 

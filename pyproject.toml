@@ -19,6 +19,7 @@ attrs = "^19.3.0"
 watchgod = "^0.5"
 jinja2 = "^2.11.1"
 related = "^0.7.2"
+lxml = "^4.5.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.3.5"
