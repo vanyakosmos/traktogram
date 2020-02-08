@@ -165,7 +165,7 @@ class CalendarMultiNotificationHelper:
         async with self.fetch_episode_data_context():
             pass
 
-    async def update_message(self, answer: str):
+    async def update_message(self, answer: str = None):
         markup = calendar_multi_notification_markup(self.se, self.episodes_ids, self.watched, self.index)
         await asyncio.gather(
             self.query.message.edit_reply_markup(markup),
@@ -177,22 +177,22 @@ class CalendarMultiNotificationHelper:
 async def calendar_multi_notification_prev_handler(query: CallbackQuery, callback_data: dict):
     h = CalendarMultiNotificationHelper(query)
     if h.index == 0:
-        await query.answer("this is first episode")
+        await query.answer("this is first episode in the queue")
         return
     h.move_index(-1)
     await h.fetch_episode_data()
-    await h.update_message("moving to the previous episode")
+    await h.update_message()
 
 
 @dp.callback_query_handler(episodes_cd.filter(action='next'))
 async def calendar_multi_notification_next_handler(query: CallbackQuery, callback_data: dict):
     h = CalendarMultiNotificationHelper(query)
     if h.index == len(h.episodes_ids) - 1:
-        await query.answer("this is last episode")
+        await query.answer("this is last episode in the queue")
         return
     h.move_index(1)
     await h.fetch_episode_data()
-    await h.update_message(answer="moving to the next episode")
+    await h.update_message()
 
 
 @dp.callback_query_handler(episodes_cd.filter(action='watch'))
