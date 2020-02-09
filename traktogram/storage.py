@@ -1,16 +1,21 @@
 import json
+import logging
 from datetime import timedelta
 from functools import wraps
 from typing import Optional
 
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
+from aioredis.util import parse_url
 
+from traktogram.config import REDIS_URI
 from traktogram.models import Model
 
 
 CREDS_KEY = 'creds'
 CACHE_KEY = 'cache'
+
+logger = logging.getLogger(__name__)
 
 
 @related.immutable
@@ -114,6 +119,13 @@ class CacheMixin:
 
 
 class Storage(RedisStorage2, CredsMixin, CacheMixin):
-    def __init__(self, **kwargs):
+    def __init__(self, uri=REDIS_URI, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
-        super().__init__(**kwargs)
+        if uri:
+            (host, port), option = parse_url(uri)
+            option_str = ', '.join(map(lambda e: f"{e[0]}={e[1]}", option.items()))
+            logger.debug(f"Connecting to redis: host={host}, post={port}, {option_str}")
+            super().__init__(host, port, **option, **kwargs)
+        else:
+            logger.debug("Connecting to redis using default parameters.")
+            super().__init__(**kwargs)

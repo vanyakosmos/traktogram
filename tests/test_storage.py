@@ -22,10 +22,7 @@ async def test_redis_cache_dec(store):
         return {'foo': d}
 
     key = store.make_func_key(func, 4)
-    try:
-        assert await store.get_cache(key) is None
-        assert await func(4) == {'foo': 4}
-        assert await store.get_cache(key) == b'{"foo": 4}'
-        assert await func(4) == {'foo': 4}
-    finally:
-        await store.delete_cache(key)
+    assert await store.get_cache(key) is None
+    assert await func(4) == {'foo': 4}
+    assert await store.get_cache(key) == b'{"foo": 4}'
+    assert await func(4) == {'foo': 4}

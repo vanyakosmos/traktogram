@@ -24,11 +24,13 @@ def pytest_collection_modifyitems(config, items):
 
 
 @pytest.fixture
-async def store(event_loop):
-    store = Storage(loop=event_loop)
+async def store():
+    store = Storage(uri='redis://localhost:6379/1')
     try:
         yield store
     finally:
+        conn = await store.redis()
+        await conn.flushdb()
         await store.close()
         await store.wait_closed()
 
