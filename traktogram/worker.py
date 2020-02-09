@@ -1,36 +1,74 @@
 import logging
 import logging.config
+from functools import wraps
 from typing import List
 
 from arq import Worker, cron
 from arq.connections import ArqRedis
+from attr import attrib
+from related import immutable, to_model
 
 from traktogram import rendering
 from traktogram.config import LOGGING_CONFIG
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
-from traktogram.trakt import CalendarEpisode, TraktClient
-from traktogram.updater import bot, storage
+from traktogram.storage import Storage
+from traktogram.trakt import CalendarEpisode, TraktClient, TraktSession
+from traktogram.dispatcher import bot
 from traktogram.utils import group_by_show, make_calendar_notification_task_id
 
 
 logger = logging.getLogger(__name__)
 
 
-async def send_calendar_notifications(ctx: dict, user_id: str, ce: CalendarEpisode):
+@immutable
+class Context:
+    redis = attrib(type=ArqRedis)
+    trakt = attrib(type=TraktClient)
+    storage = attrib(type=Storage)
+
+    def keys(self):
+        return [a.name for a in self.__attrs_attrs__]
+
+    def __setitem__(self, key, value):
+        setattr(self, key, value)
+
+    def __getitem__(self, item):
+        return getattr(self, item)
+
+
+def with_context(f):
+    @wraps(f)
+    async def dec(ctx: dict, *args, **kwargs):
+        ctx = to_model(Context, ctx)
+        return await f(ctx, *args, **kwargs)
+
+    return dec
+
+
+def without_context(f):
+    @wraps(f)
+    async def dec(_: dict, *args, **kwargs):
+        return f(*args, **kwargs)
+
+    return dec
+
+
+@with_context
+async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEpisode):
     text = rendering.render_html(
         'calendar_notification',
         show=ce.show,
         episode=ce.episode,
     )
-    async with TraktClient() as client:
-        creds = await storage.get_creds(user_id)
-        client.auth(creds.access_token)
-        watched = await client.watched(ce.episode.ids.trakt)
+    creds = await ctx.storage.get_creds(user_id)
+    sess = ctx.trakt.auth(creds.access_token)
+    watched = await sess.watched(ce.episode.ids.trakt)
     keyboard_markup = await calendar_notification_markup(ce, watched=watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
-async def send_calendar_multi_notifications(ctx: dict, user_id: str, episodes: List[CalendarEpisode]):
+@with_context
+async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes: List[CalendarEpisode]):
     first = episodes[0]
     show = first.show
     text = rendering.render_html(
@@ -38,17 +76,16 @@ async def send_calendar_multi_notifications(ctx: dict, user_id: str, episodes: L
         show=show,
         episodes=[cs.episode for cs in episodes],
     )
-    async with TraktClient() as client:
-        creds = await storage.get_creds(user_id)
-        client.auth(creds.access_token)
-        watched = await client.watched(first.episode.ids.trakt)
+    creds = await ctx.storage.get_creds(user_id)
+    sess = ctx.trakt.auth(creds.access_token)
+    watched = await sess.watched(first.episode.ids.trakt)
     episodes_ids = [cs.episode.ids.trakt for cs in episodes]
     keyboard_markup = calendar_multi_notification_markup(first, episodes_ids, watched)
     await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
-async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, user_id):
-    episodes = await client.calendar_shows(extended=True)
+async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id):
+    episodes = await sess.calendar_shows(extended=True)
     logger.debug(f"fetched {len(episodes)} episodes")
     groups = group_by_show(episodes)
     for group in groups:
@@ -75,20 +112,30 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
     logger.debug(f"scheduled {len(groups)} notifications")
 
 
-async def schedule_calendar_notifications(ctx: dict):
-    queue: ArqRedis = ctx['redis']
-    async with TraktClient() as client:
-        async for user_id, creds in storage.creds_iter():
-            client.auth(creds.access_token)
-            await schedule_calendar_notification(client, queue, user_id)
+@with_context
+async def schedule_calendar_notifications(ctx: Context):
+    async for user_id, creds in ctx.storage.creds_iter():
+        sess = ctx.trakt.auth(creds.access_token)
+        await schedule_calendar_notification(sess, ctx.redis, user_id)
 
 
-async def schedule_tokens_refresh(ctx: dict):
-    async with TraktClient() as client:
-        async for user_id, creds in storage.creds_iter():
-            client.auth(creds.access_token)
-            tokens = await client.refresh_token(creds.refresh_token)
-            await storage.save_creds(user_id, tokens)
+@with_context
+async def schedule_tokens_refresh(ctx: Context):
+    async for user_id, creds in ctx.storage.creds_iter():
+        sess = ctx.trakt.auth(creds.access_token)
+        tokens = await sess.refresh_token(creds.refresh_token)
+        await ctx.storage.save_creds(user_id, tokens)
+
+
+async def on_startup(ctx: dict):
+    ctx['trakt'] = TraktClient()
+    ctx['storage'] = Storage()
+
+
+async def on_shutdown(ctx: dict):
+    await ctx['trakt'].close()
+    await ctx['storage'].close()
+    await ctx['storage'].wait_closed()
 
 
 def main():
@@ -100,6 +147,8 @@ def main():
             cron(schedule_tokens_refresh, weekday=1, hour=0, minute=0, second=0),
         ],
         keep_result=0,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
     )
     worker.run()
 

@@ -5,21 +5,19 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pprint import pprint
 
-from arq import ArqRedis, Worker, create_pool
+from arq import create_pool
 from arq.connections import RedisSettings
 
-from traktogram.config import LOGGING_CONFIG
-from traktogram.trakt import TraktClient
-from traktogram.utils import group_by_show, make_calendar_notification_task_id
-from traktogram.worker import send_calendar_multi_notifications, send_calendar_notifications
-from traktogram.updater import storage
+from traktogram.worker import *
 
 
 @asynccontextmanager
 async def ctx_manager():
-    d = {'redis': await create_pool(RedisSettings())}
-    yield d
-    d['redis'].close()
+    ctx = {'redis': await create_pool(RedisSettings())}
+    await on_startup(ctx)
+    yield ctx
+    await on_shutdown(ctx)
+    ctx['redis'].close()
 
 
 async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
@@ -45,8 +43,8 @@ async def schedule_multi(*, queue, user_id, first, group, **kwargs):
                                    _defer_until=first.first_aired)
 
 
-async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, user_id, multi=False, delay=1):
-    episodes = await client.calendar_shows(extended=True, start_date='2020-01-30', days=2)
+async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id, multi=False, delay=1):
+    episodes = await sess.calendar_shows(extended=True, start_date='2020-01-30', days=2)
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:
         e.first_aired = first_aired
@@ -64,12 +62,11 @@ async def schedule_calendar_notification(client: TraktClient, queue: ArqRedis, u
                 print(await schedule_multi(**locals()))
 
 
-async def schedule_calendar_notifications(ctx: dict, **kwargs):
-    queue: ArqRedis = ctx['redis']
-    async with TraktClient() as client:
-        async for user_id, creds in storage.creds_iter():
-            client.auth(creds.access_token)
-            await schedule_calendar_notification(client, queue, user_id, **kwargs)
+@with_context
+async def schedule_calendar_notifications(ctx: Context, **kwargs):
+    async for user_id, creds in ctx.storage.creds_iter():
+        sess = ctx.trakt.auth(creds.access_token)
+        await schedule_calendar_notification(sess, ctx.redis, user_id, **kwargs)
 
 
 async def test_calendar(**kwargs):
@@ -79,21 +76,23 @@ async def test_calendar(**kwargs):
         (send_calendar_notifications, send_calendar_multi_notifications),
         keep_result=0,
         burst=True,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
     )
     await worker.async_run()
 
 
 async def test_refresh_token(user_id):
-    async with TraktClient() as client:
-        creds = await storage.get_creds(user_id)
+    async with ctx_manager() as ctx:
+        creds = await ctx.storage.get_creds(user_id)
         pprint(creds.to_dict())
-        client.auth(creds.access_token)
-        tokens = await client.refresh_token(creds.refresh_token)
+        sess = ctx.trakt.auth(creds.access_token)
+        tokens = await sess.refresh_token(creds.refresh_token)
         pprint(tokens)
-        await storage.save_creds(user_id, tokens)
+        await ctx.storage.save_creds(user_id, tokens)
 
 
-async def test_task(ctx: dict):
+async def test_task(_):
     print('test')
 
 
@@ -109,6 +108,8 @@ async def test_same_time_schedule():
         (test_task,),
         keep_result=0,
         burst=True,
+        on_startup=on_startup,
+        on_shutdown=on_shutdown,
     )
     await worker.async_run()
 

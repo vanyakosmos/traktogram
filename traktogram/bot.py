@@ -2,11 +2,12 @@ import importlib
 import logging
 import logging.config
 
-from aiogram import Dispatcher
 from aiogram.utils import executor
 
 from traktogram.config import LOGGING_CONFIG
-from traktogram.updater import dp
+from traktogram.dispatcher import Dispatcher, dp
+from traktogram.storage import Storage
+from traktogram.trakt import TraktClient
 
 
 logger = logging.getLogger(__name__)
@@ -14,11 +15,14 @@ logger = logging.getLogger(__name__)
 
 async def on_startup(dispatcher: Dispatcher, **kwargs):
     logger.debug('startup')
-    importlib.import_module('traktogram.commands')  # setup handlers
+    dispatcher.storage = Storage()
+    dispatcher.trakt = TraktClient()
+    importlib.import_module('traktogram.handlers')  # setup handlers
 
 
 async def on_shutdown(dispatcher: Dispatcher):
     logger.debug('shutdown')
+    await dispatcher.trakt.close()
 
 
 def main():

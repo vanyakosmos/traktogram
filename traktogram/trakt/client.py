@@ -4,7 +4,9 @@ from datetime import datetime
 from time import time
 from typing import List, Optional
 
-from traktogram.client import Client
+from aiohttp import ClientSession
+from yarl import URL
+
 from .models import CalendarEpisode, Episode, ShowEpisode
 from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 
@@ -12,23 +14,25 @@ from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 logger = logging.getLogger(__name__)
 
 
-class TraktClient(Client):
-    def __init__(self):
-        super().__init__('https://api.trakt.tv')
+class Session:
+    def __init__(self, session: ClientSession, access_token=None):
+        self.base = URL('https://api.trakt.tv')
+        self.session = session
+        self.access_token = access_token
 
     @property
     def headers(self):
-        return {
+        headers = {
             'Content-type': 'application/json',
-            'Authorization': f'Bearer {self.access_token}',
             'trakt-api-key': TRAKT_CLIENT_ID,
             'trakt-api-version': '2',
         }
+        if self.access_token:
+            headers['Authorization'] = f'Bearer {self.access_token}'
+        return headers
 
-    def auth(self, access_token):
-        self.access_token = access_token
-        return self
 
+class AuthMixin(Session):
     async def device_code(self) -> dict:
         """
         Response example::
@@ -97,40 +101,16 @@ class TraktClient(Client):
         data = await r.json()
         return data
 
-    async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarEpisode]:
-        if not start_date:
-            start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
-        url = self.base / f'calendars/my/shows/{start_date}/{days}'
-        if extended:
-            url = url.update_query(extended='full')
-        r = await self.session.get(url, headers=self.headers)
-        data = await r.json()
-        return [CalendarEpisode.from_dict(e) for e in data]
+    async def revoke_token(self):
+        url = self.base / 'oauth/revoke'
+        await self.session.post(url, json={
+            'token': self.access_token,
+            'client_id': TRAKT_CLIENT_ID,
+            'client_secret': TRAKT_CLIENT_SECRET,
+        })
 
-    async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
-        url = self.base / f'shows/{show_id}/seasons/{season}/episodes/{episode}'
-        if extended:
-            url = url.update_query(extended='full')
-        r = await self.session.get(url, headers=self.headers)
-        data = await r.json()
-        return Episode.from_dict(data)
 
-    async def search_id(self, provider, id, type=None, extended=False):
-        url = self.base / f'search/{provider}/{id}'
-        if type:
-            url = url.update_query(type=type)
-        if extended:
-            url = url.update_query(extended='full')
-        r = await self.session.get(url, headers=self.headers)
-        data = await r.json()
-        return data
-
-    async def get_episode(self, episode_id, extended=False) -> Optional[ShowEpisode]:
-        data = await self.search_id('trakt', episode_id, type='episode', extended=extended)
-        if not data:
-            return
-        return ShowEpisode.from_dict(data[0])
-
+class HistoryMixin(Session):
     async def get_history(self, episode_id, extended=False) -> List[ShowEpisode]:
         url = self.base / 'sync/history/episodes' / str(episode_id)
         if extended:
@@ -138,9 +118,6 @@ class TraktClient(Client):
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
         return [ShowEpisode.from_dict(e) for e in data]
-
-    async def watched(self, episode_id):
-        return len(await self.get_history(episode_id)) != 0
 
     async def add_to_history(self, episode_id) -> ShowEpisode:
         url = self.base / 'sync/history'
@@ -163,3 +140,59 @@ class TraktClient(Client):
         r = await self.session.post(url, json=data, headers=self.headers)
         data = await r.json()
         return data
+
+    async def watched(self, episode_id):
+        return len(await self.get_history(episode_id)) != 0
+
+
+class TraktSession(AuthMixin, HistoryMixin):
+    async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarEpisode]:
+        if not start_date:
+            start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
+        url = self.base / f'calendars/my/shows/{start_date}/{days}'
+        if extended:
+            url = url.update_query(extended='full')
+        r = await self.session.get(url, headers=self.headers)
+        data = await r.json()
+        return [CalendarEpisode.from_dict(e) for e in data]
+
+    async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
+        url = self.base / f'shows/{show_id}/seasons/{season}/episodes/{episode}'
+        if extended:
+            url = url.update_query(extended='full')
+        r = await self.session.get(url, headers=self.headers)
+        data = await r.json()
+        return Episode.from_dict(data)
+
+    async def search_by_id(self, provider, id, type=None, extended=False):
+        url = self.base / f'search/{provider}/{id}'
+        if type:
+            url = url.update_query(type=type)
+        if extended:
+            url = url.update_query(extended='full')
+        r = await self.session.get(url, headers=self.headers)
+        data = await r.json()
+        return data
+
+    async def search_by_episode_id(self, episode_id, extended=False) -> Optional[ShowEpisode]:
+        data = await self.search_by_id('trakt', episode_id, type='episode', extended=extended)
+        if not data:
+            return
+        return ShowEpisode.from_dict(data[0])
+
+
+class TraktClient:
+    def __init__(self):
+        self.session = ClientSession()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    async def close(self):
+        await self.session.close()
+
+    def auth(self, access_token=None) -> TraktSession:
+        return TraktSession(self.session, access_token)

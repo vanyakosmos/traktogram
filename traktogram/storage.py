@@ -1,6 +1,7 @@
 import json
 from datetime import timedelta
 from functools import wraps
+from typing import Optional
 
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
@@ -43,11 +44,12 @@ class CredsMixin:
         conn, key = await self.creds_conn_key
         return await conn.hset(key, user_id, json.dumps(creds))
 
-    async def get_creds(self, user_id):
+    async def get_creds(self, user_id) -> Optional[Creds]:
         conn, key = await self.creds_conn_key
         data = await conn.hget(key, user_id)
-        data = json.loads(data.decode())
-        return Creds.from_dict(data)
+        if data:
+            data = json.loads(data.decode())
+            return Creds.from_dict(data)
 
     async def remove_creds(self, user_id):
         conn, key = await self.creds_conn_key
@@ -115,5 +117,3 @@ class Storage(RedisStorage2, HelpersMixin, CredsMixin, CacheMixin):
     def __init__(self, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
         super().__init__(**kwargs)
-
-
