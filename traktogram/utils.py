@@ -1,15 +1,35 @@
 import math
+import re
 import string
 import textwrap
 from datetime import datetime
+from functools import singledispatch
+from logging import LogRecord
 from typing import Callable, List, Union
 
 import aiohttp
+import colorlog
+from aiogram.utils.callback_data import CallbackDataFilter
 from lxml import html
 from yarl import URL
 
 
 digs = string.digits + string.ascii_letters
+ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+
+class LogFormatter(colorlog.ColoredFormatter):
+    def format(self, record: LogRecord):
+        text = record.getMessage()
+        record.msg = ''
+        record.args = ()
+        prefix = super(LogFormatter, self).format(record)
+        plain_prefix = ansi_escape.sub('', prefix)
+        lines = text.splitlines()
+        res = [f"{prefix}{lines[0]}"]
+        for line in lines[1:]:
+            res.append(' ' * len(plain_prefix) + line)
+        return '\n'.join(res)
 
 
 def dedent(text: str):
@@ -84,3 +104,13 @@ async def get_9anime_url(title, **kwargs):
         root = html.fromstring(await r.read())
         el = root.xpath("(//div[@class='film-list']//a)[1]")[0]
         return el.get("href")
+
+
+@singledispatch
+def to_str(v):
+    return str(v)
+
+
+@to_str.register
+def _(v: CallbackDataFilter):
+    return f"CallbackDataFilter({v.config})"

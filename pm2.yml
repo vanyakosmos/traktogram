@@ -1,7 +1,7 @@
 common: &common
   max_restarts: 1
   watch:
-    - traktogram
+    - traktogram/**/*.py
   env:
     PYTHONPATH: .
 

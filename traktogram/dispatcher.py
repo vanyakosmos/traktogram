@@ -6,6 +6,7 @@ import aiogram
 
 from .config import BOT_TOKEN
 from .storage import Storage
+from .utils import to_str
 
 
 logger = logging.getLogger(__name__)
@@ -14,13 +15,13 @@ logger = logging.getLogger(__name__)
 def log_register(f):
     def dec(self, callback, *args, **kwargs):
         lines = []
-        # if args:
-        #     lines.append(', '.join(map(str, args)))
+        if args:
+            lines.append(', '.join(map(to_str, args)))
         if kwargs:
             lines.append(', '.join(map(lambda e: f"{e[0]}={e[1]!r}", kwargs.items())))
         text = '\n'.join(lines)
-        # text = textwrap.indent(text, prefix='    ')
-        logger.debug(f"registered {callback.__name__}: {text}")
+        text = textwrap.indent(text, prefix='    ')
+        logger.debug(f"registered {callback.__name__.upper()}:\n{text}")
         return f(self, callback, *args, **kwargs)
 
     return dec

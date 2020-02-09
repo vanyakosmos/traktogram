@@ -2,7 +2,6 @@ import os
 
 import dotenv
 
-
 dotenv.load_dotenv()
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
@@ -16,7 +15,7 @@ LOGGING_CONFIG = {
     'disable_existing_loggers': False,
     'formatters': {
         'default': {
-            '()': 'colorlog.ColoredFormatter',
+            '()': 'traktogram.utils.LogFormatter',
             'format': (
                 '%(purple)s%(asctime)s%(reset)s '
                 '%(log_color)s%(levelname)-8s%(reset)s '

@@ -17,6 +17,7 @@ class TestSplitGroup:
         assert gs == [[1, 2, 3], [4, 5], [6, 7]]
 
 
+@pytest.mark.slow
 async def test_get_9anime_url(loop):
     url = await get_9anime_url("alchemist", loop=loop)
     assert url.startswith('https://9anime.to/watch/fullmetal-alchemist')
