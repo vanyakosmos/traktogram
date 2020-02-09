@@ -1,11 +1,12 @@
 import math
 import string
 import textwrap
-from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Callable, List, Union
 
-from traktogram.trakt import CalendarEpisode
+import aiohttp
+from lxml import html
+from yarl import URL
 
 
 digs = string.digits + string.ascii_letters
@@ -39,30 +40,6 @@ def split_group(group: list, max_num=8) -> List[List]:
     return res
 
 
-def group_by_show(episodes: List[CalendarEpisode], max_num=8) -> List[List[CalendarEpisode]]:
-    """
-    Group episodes by show and datetime when they were aired.
-    Split big groups into smaller ones.
-    Slightly postpone episodes from big groups so that they will be scheduled in order.
-
-    :param episodes: episodes to group
-    :param max_num: max number of elements in group
-    :return:
-    """
-    groups = defaultdict(list)
-    for e in episodes:
-        key = (e.show.ids.trakt, e.first_aired)
-        groups[key].append(e)
-    res = []
-    for group in groups.values():
-        gs = split_group(group, max_num)
-        for i, g in enumerate(gs):
-            for ce in g:
-                ce.first_aired += timedelta(seconds=i)
-        res.extend(gs)
-    return res
-
-
 def compress_int(n: int, base=32):
     if n < base:
         return digs[n]
@@ -91,3 +68,19 @@ def make_calendar_notification_task_id(func: Union[str, Callable], user_id, show
         episodes_ids = '|'.join(map(str, episodes_ids))
         id = f'{id}-{episodes_ids}'
     return id
+
+
+async def get_9anime_url(title, **kwargs):
+    async with aiohttp.ClientSession(**kwargs) as s:
+        url = URL('https://9anime.to/filter')
+        url = url.update_query([
+            ('keyword', title),
+            ('type[]', 'series'),
+            ('type[]', 'ova'),
+            ('type[]', 'ona'),
+            ('language[]', 'subbed'),
+        ])
+        r = await s.get(url)
+        root = html.fromstring(await r.read())
+        el = root.xpath("(//div[@class='film-list']//a)[1]")[0]
+        return el.get("href")

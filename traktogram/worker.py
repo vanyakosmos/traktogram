@@ -10,11 +10,12 @@ from related import immutable, to_model
 
 from traktogram import rendering
 from traktogram.config import LOGGING_CONFIG
-from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
-from traktogram.storage import Storage
-from traktogram.trakt import CalendarEpisode, TraktClient, TraktSession
 from traktogram.dispatcher import bot
-from traktogram.utils import group_by_show, make_calendar_notification_task_id
+from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
+from traktogram.models import CalendarEpisode
+from traktogram.storage import Storage
+from traktogram.trakt import TraktClient, TraktSession
+from traktogram.utils import make_calendar_notification_task_id
 
 
 logger = logging.getLogger(__name__)
@@ -87,7 +88,7 @@ async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes
 async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id):
     episodes = await sess.calendar_shows(extended=True)
     logger.debug(f"fetched {len(episodes)} episodes")
-    groups = group_by_show(episodes)
+    groups = CalendarEpisode.group_by_show(episodes)
     for group in groups:
         first = group[0]
         if len(group) == 1:
@@ -136,6 +137,7 @@ async def on_shutdown(ctx: dict):
     await ctx['trakt'].close()
     await ctx['storage'].close()
     await ctx['storage'].wait_closed()
+    await bot.close()
 
 
 def main():

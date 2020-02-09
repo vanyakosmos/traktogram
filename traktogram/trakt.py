@@ -7,8 +7,8 @@ from typing import List, Optional
 from aiohttp import ClientSession
 from yarl import URL
 
+from .config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 from .models import CalendarEpisode, Episode, ShowEpisode
-from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
 
 
 logger = logging.getLogger(__name__)

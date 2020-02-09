@@ -29,7 +29,7 @@ class HelpersMixin:
                 yield item
 
 
-class CredsMixin:
+class CredsMixin(HelpersMixin):
     @property
     async def creds_conn_key(self: 'Storage'):
         conn = await self.redis()
@@ -113,7 +113,7 @@ class CacheMixin:
         return wrap
 
 
-class Storage(RedisStorage2, HelpersMixin, CredsMixin, CacheMixin):
+class Storage(RedisStorage2, CredsMixin, CacheMixin):
     def __init__(self, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
         super().__init__(**kwargs)

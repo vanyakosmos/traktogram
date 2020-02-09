@@ -1,5 +1,6 @@
 import asyncio
 import logging.config
+import os
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ from traktogram.worker import *
 async def ctx_manager():
     ctx = {'redis': await create_pool(RedisSettings())}
     await on_startup(ctx)
-    yield ctx
+    yield Context(**ctx)
     await on_shutdown(ctx)
     ctx['redis'].close()
 
@@ -48,7 +49,7 @@ async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, us
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:
         e.first_aired = first_aired
-    groups = group_by_show(episodes, max_num=3)
+    groups = CalendarEpisode.group_by_show(episodes, max_num=3)
     print(len(groups))
     print(list(map(len, groups)))
     for group in groups:
@@ -69,17 +70,17 @@ async def schedule_calendar_notifications(ctx: Context, **kwargs):
         await schedule_calendar_notification(sess, ctx.redis, user_id, **kwargs)
 
 
-async def test_calendar(**kwargs):
+async def test_calendar(delay, **kwargs):
     async with ctx_manager() as ctx:
-        await schedule_calendar_notifications(ctx, **kwargs)
-    worker = Worker(
-        (send_calendar_notifications, send_calendar_multi_notifications),
-        keep_result=0,
-        burst=True,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-    )
-    await worker.async_run()
+        await schedule_calendar_notifications(ctx, delay=delay, **kwargs)
+        worker = Worker(
+            (send_calendar_notifications, send_calendar_multi_notifications),
+            keep_result=0,
+            burst=True,
+            on_startup=on_startup,
+            on_shutdown=on_shutdown,
+        )
+        await worker.async_run()
 
 
 async def test_refresh_token(user_id):
@@ -116,6 +117,7 @@ async def test_same_time_schedule():
 
 async def main():
     parser = ArgumentParser()
+    parser.add_argument('--all', '-a', action='store_true')
     sub = parser.add_subparsers(dest='sub')
     p_cal = sub.add_parser('calendar', aliases=('cal',))
     p_cal.add_argument('--multi', '-m', action='store_true')
@@ -129,6 +131,11 @@ async def main():
     elif args.sub == 'refresh':
         await test_refresh_token(args.user_id)
     elif args.sub == 'same':
+        await test_same_time_schedule()
+    elif args.all:
+        await test_calendar(multi=True, delay=1)
+        await test_calendar(multi=False, delay=1)
+        await test_refresh_token(os.getenv('USER_ID'))
         await test_same_time_schedule()
 
 

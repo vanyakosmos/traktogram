@@ -3,7 +3,7 @@ from typing import List
 from aiogram.types import InlineKeyboardButton as IKB, InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 
-from .trakt.models import ShowEpisode
+from .models import ShowEpisode
 from .utils import compress_int, decompress_int
 
 

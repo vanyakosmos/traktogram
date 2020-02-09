@@ -1,7 +1,7 @@
 import textwrap
 
+from traktogram.models import ShowEpisode
 from traktogram.rendering import render_html, render_string
-from traktogram.trakt.models import ShowEpisode
 from traktogram.utils import dedent
 
 
