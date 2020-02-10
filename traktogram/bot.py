@@ -19,6 +19,8 @@ async def on_startup(dispatcher: Dispatcher, **kwargs):
     dispatcher.trakt = TraktClient()
     importlib.import_module('traktogram.handlers')  # setup handlers
 
+    await dispatcher.storage.redis()  # test connection
+
 
 async def on_shutdown(dispatcher: Dispatcher):
     logger.debug('shutdown')

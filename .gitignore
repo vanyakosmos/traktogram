@@ -129,3 +129,6 @@ dmypy.json
 *.json
 todo.txt
 dump.rdb
+.envs/*
+!.envs/example.env
+docker-compose.override.yml

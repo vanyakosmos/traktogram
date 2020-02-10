@@ -1,8 +1,6 @@
 import os
 
-import dotenv
 
-dotenv.load_dotenv()
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_LEVEL_ROOT = os.getenv('LOG_LEVEL_ROOT', 'WARNING')

@@ -7,18 +7,19 @@ from datetime import datetime, timedelta
 from pprint import pprint
 
 from arq import create_pool
-from arq.connections import RedisSettings
 
 from traktogram.worker import *
 
 
 @asynccontextmanager
 async def ctx_manager():
-    ctx = {'redis': await create_pool(RedisSettings())}
+    ctx = {'redis': await create_pool(get_redis_settings())}
     await on_startup(ctx)
-    yield Context(**ctx)
-    await on_shutdown(ctx)
-    ctx['redis'].close()
+    try:
+        yield Context(**ctx)
+    finally:
+        await on_shutdown(ctx)
+        ctx['redis'].close()
 
 
 async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
@@ -65,7 +66,9 @@ async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, us
 
 @with_context
 async def schedule_calendar_notifications(ctx: Context, **kwargs):
-    async for user_id, creds in ctx.storage.creds_iter():
+    user_creds = [(u, c) async for u, c in ctx.storage.creds_iter()]
+    logger.info(f"{len(user_creds)} creds were found.")
+    for user_id, creds in user_creds:
         sess = ctx.trakt.auth(creds.access_token)
         await schedule_calendar_notification(sess, ctx.redis, user_id, **kwargs)
 
@@ -79,6 +82,7 @@ async def test_calendar(delay, **kwargs):
             burst=True,
             on_startup=on_startup,
             on_shutdown=on_shutdown,
+            redis_settings=get_redis_settings(),
         )
         await worker.async_run()
 
@@ -111,6 +115,7 @@ async def test_same_time_schedule():
         burst=True,
         on_startup=on_startup,
         on_shutdown=on_shutdown,
+        redis_settings=get_redis_settings(),
     )
     await worker.async_run()
 

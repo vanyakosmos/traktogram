@@ -1,0 +1,29 @@
+version: "3.4"
+
+
+x-app: &app
+  image: traktogram
+  env_file:
+    - .envs/prod.env
+  stop_signal: SIGINT
+
+
+services:
+  redis:
+    image: redis:5-alpine
+    hostname: redis
+    command: redis-server --requirepass $REDIS_PATH
+    ports:
+      - 6379:6379
+
+  bot:
+    <<: *app
+    build:  # build only for first service
+      context: .
+      args:
+        - installargs=--no-dev
+    command: python traktogram/bot.py
+
+  worker:
+    <<: *app
+    command: python traktogram/worker.py
