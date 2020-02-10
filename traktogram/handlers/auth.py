@@ -3,8 +3,9 @@ import logging
 
 from aiogram.types import Message
 
-from traktogram.rendering import render_html
 from traktogram.dispatcher import dp
+from traktogram.rendering import render_html
+from traktogram.worker import schedule_calendar_notification
 
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ async def process_auth_flow(message: Message):
                 dp.storage.save_creds(user_id, data),
                 reply.edit_text("✅ successfully authenticated"),
             )
-            break
+            return data['access_token']
         else:
             text = render_html('auth_message', url=url, code=code, time_left=data)
             await reply.edit_text(text, **reply_kwargs)
@@ -51,6 +52,9 @@ async def auth_handler(message: Message):
 
     await dp.storage.set_state(user=user_id, state='auth')
     try:
-        await process_auth_flow(message)
+        access_token = await process_auth_flow(message)
+        if access_token:
+            sess = dp.trakt.auth(access_token)
+            await schedule_calendar_notification(sess, dp.queue, user_id)
     finally:
         await dp.storage.finish(user=user_id)

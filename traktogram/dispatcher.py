@@ -3,6 +3,7 @@ import textwrap
 from typing import Optional
 
 import aiogram
+from arq import ArqRedis
 
 from .config import BOT_TOKEN
 from .storage import Storage
@@ -33,6 +34,7 @@ class Dispatcher(aiogram.Dispatcher):
         self.commands_help = {}
         self.trakt: Optional['TraktClient'] = None
         self.storage = storage
+        self.queue: Optional[ArqRedis] = None
 
     def command_handler(self, command, help=None, **kwargs):
         if help:

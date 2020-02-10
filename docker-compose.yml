@@ -14,7 +14,7 @@ services:
   redis:
     image: redis:5-alpine
     hostname: redis
-    command: ["redis-server", "--requirepass", "$REDIS_PASS"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASS}"]
     ports:
       - 6379:6379
     volumes:

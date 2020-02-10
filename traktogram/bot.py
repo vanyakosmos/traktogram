@@ -2,12 +2,14 @@ import importlib
 import logging
 import logging.config
 
+import arq
 from aiogram.utils import executor
 
 from traktogram.config import LOGGING_CONFIG
 from traktogram.dispatcher import Dispatcher, dp
 from traktogram.storage import Storage
 from traktogram.trakt import TraktClient
+from traktogram.worker import get_redis_settings
 
 
 logger = logging.getLogger(__name__)
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 async def on_startup(dispatcher: Dispatcher, **kwargs):
     logger.debug('startup')
     dispatcher.storage = Storage()
+    dispatcher.queue = await arq.create_pool(get_redis_settings())
     dispatcher.trakt = TraktClient()
     importlib.import_module('traktogram.handlers')  # setup handlers
 
@@ -25,6 +28,8 @@ async def on_startup(dispatcher: Dispatcher, **kwargs):
 async def on_shutdown(dispatcher: Dispatcher):
     logger.debug('shutdown')
     await dispatcher.trakt.close()
+    dispatcher.queue.close()
+    await dispatcher.queue.wait_closed()
 
 
 def main():
