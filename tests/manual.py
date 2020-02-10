@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pprint import pprint
 
 from arq import create_pool
+from arq.constants import job_key_prefix
 
 from traktogram.worker import *
 
@@ -109,15 +110,29 @@ async def test_same_time_schedule():
         await queue.enqueue_job('test_task', _job_id='test_task1', _defer_until=dt)
         assert len(await queue.queued_jobs()) == 1
 
-    worker = Worker(
-        (test_task,),
-        keep_result=0,
-        burst=True,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
-        redis_settings=get_redis_settings(),
-    )
-    await worker.async_run()
+        worker = Worker(
+            (test_task,),
+            keep_result=0,
+            burst=True,
+            on_startup=on_startup,
+            on_shutdown=on_shutdown,
+            redis_settings=get_redis_settings(),
+        )
+        await worker.async_run()
+
+
+async def test_remove():
+    async with ctx_manager() as ctx:
+        dt = datetime.utcnow() + timedelta(seconds=2)
+        await ctx.redis.enqueue_job('test_task', _job_id='test_task1', _defer_until=dt)
+        print(await ctx.redis.delete(job_key_prefix + 'test_task1'))
+        worker = Worker(
+            (test_task,),
+            keep_result=0,
+            burst=True,
+            redis_settings=get_redis_settings(),
+        )
+        await worker.async_run()
 
 
 async def main():
@@ -129,7 +144,8 @@ async def main():
     p_cal.add_argument('--delay', '-d', type=int, default=1)
     p_ref = sub.add_parser('refresh')
     p_ref.add_argument('user_id', type=int)
-    p_same = sub.add_parser('same')
+    sub.add_parser('same')
+    sub.add_parser('remove')
     args = parser.parse_args()
     if args.sub in ('cal', 'calendar'):
         await test_calendar(multi=args.multi, delay=args.delay)
@@ -137,6 +153,8 @@ async def main():
         await test_refresh_token(args.user_id)
     elif args.sub == 'same':
         await test_same_time_schedule()
+    elif args.sub == 'remove':
+        await test_remove()
     elif args.all:
         await test_calendar(multi=True, delay=1)
         await test_calendar(multi=False, delay=1)

@@ -5,6 +5,7 @@ from typing import List
 
 from arq import Worker, cron
 from arq.connections import ArqRedis, RedisSettings
+from arq.constants import job_key_prefix
 from attr import attrib
 from related import immutable, to_model
 
@@ -145,6 +146,12 @@ def get_redis_settings():
     rs['database'] = rs['db']
     del rs['db']
     return RedisSettings(**rs)
+
+
+async def get_tasks_keys(queue: ArqRedis, user_id):
+    keys = await queue.keys(job_key_prefix + f'send_calendar_notifications-{user_id}-*')
+    keys += await queue.keys(job_key_prefix + f'send_calendar_multi_notifications-{user_id}-*')
+    return keys
 
 
 def main():
