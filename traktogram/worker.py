@@ -4,18 +4,18 @@ from functools import wraps
 from typing import List
 
 from arq import Worker, cron
-from arq.connections import ArqRedis
+from arq.connections import ArqRedis, RedisSettings
 from attr import attrib
 from related import immutable, to_model
 
 from traktogram import rendering
-from traktogram.config import LOGGING_CONFIG
+from traktogram.config import LOGGING_CONFIG, REDIS_URI
 from traktogram.dispatcher import bot
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
 from traktogram.storage import Storage
 from traktogram.trakt import TraktClient, TraktSession
-from traktogram.utils import make_calendar_notification_task_id
+from traktogram.utils import make_calendar_notification_task_id, parse_redis_uri
 
 
 logger = logging.getLogger(__name__)
@@ -140,6 +140,13 @@ async def on_shutdown(ctx: dict):
     await bot.close()
 
 
+def get_redis_settings():
+    rs = parse_redis_uri(REDIS_URI)
+    rs['database'] = rs['db']
+    del rs['db']
+    return RedisSettings(**rs)
+
+
 def main():
     logging.config.dictConfig(LOGGING_CONFIG)
     worker = Worker(
@@ -148,6 +155,7 @@ def main():
             cron(schedule_calendar_notifications, hour=0, minute=0, second=0),
             cron(schedule_tokens_refresh, weekday=1, hour=0, minute=0, second=0),
         ],
+        redis_settings=get_redis_settings(),
         keep_result=0,
         on_startup=on_startup,
         on_shutdown=on_shutdown,

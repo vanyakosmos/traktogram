@@ -8,6 +8,7 @@ from logging import LogRecord
 from typing import Callable, List, Union
 
 import aiohttp
+import aioredis.util
 import colorlog
 from aiogram.utils.callback_data import CallbackDataFilter
 from lxml import html
@@ -114,3 +115,12 @@ def to_str(v):
 @to_str.register
 def _(v: CallbackDataFilter):
     return f"CallbackDataFilter({v.config})"
+
+
+def parse_redis_uri(uri):
+    (host, port), options = aioredis.util.parse_url(uri)
+    return {
+        'host': host,
+        'port': port,
+        **options,
+    }

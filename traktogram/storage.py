@@ -10,6 +10,7 @@ from aioredis.util import parse_url
 
 from traktogram.config import REDIS_URI
 from traktogram.models import Model
+from traktogram.utils import parse_redis_uri
 
 
 CREDS_KEY = 'creds'
@@ -118,14 +119,21 @@ class CacheMixin:
         return wrap
 
 
+def option_pair(p):
+    k, v = p
+    if k == 'password':
+        v = '****'
+    return f"{k}={v!r}"
+
+
 class Storage(RedisStorage2, CredsMixin, CacheMixin):
     def __init__(self, uri=REDIS_URI, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
         if uri:
-            (host, port), option = parse_url(uri)
-            option_str = ', '.join(map(lambda e: f"{e[0]}={e[1]}", option.items()))
-            logger.debug(f"Connecting to redis: host={host}, post={port}, {option_str}")
-            super().__init__(host, port, **option, **kwargs)
+            options = parse_redis_uri(uri)
+            option_str = ', '.join(map(option_pair, options.items()))
+            logger.debug(f"Connecting to redis: {option_str}")
+            super().__init__(**options, **kwargs)
         else:
             logger.debug("Connecting to redis using default parameters.")
             super().__init__(**kwargs)
