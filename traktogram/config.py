@@ -15,7 +15,7 @@ LOGGING_CONFIG = {
     'disable_existing_loggers': False,
     'formatters': {
         'default': {
-            '()': 'traktogram.utils.LogFormatter',
+            '()': 'colorlog.ColoredFormatter',
             'format': (
                 '%(purple)s%(asctime)s%(reset)s '
                 '%(log_color)s%(levelname)-8s%(reset)s '
