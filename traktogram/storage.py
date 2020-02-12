@@ -3,9 +3,10 @@ import json
 import logging
 from datetime import timedelta
 from functools import wraps
-from typing import Optional
 from types import FunctionType
+from typing import Optional
 
+import aioredis
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
@@ -137,11 +138,12 @@ class CacheMixin:
         return res
 
 
-def option_pair(p):
-    k, v = p
-    if k == 'password':
-        v = '****'
-    return f"{k}={v!r}"
+def build_redis_uri(host='localhost', port=6379, db=None, password=None, **kwargs):
+    auth = f":****@" if password else ''
+    uri = f"redis://{auth}{host}:{port}"
+    if db is not None:
+        uri += f'/{db}'
+    return uri
 
 
 class Storage(RedisStorage2, CredsMixin, CacheMixin):
@@ -149,21 +151,24 @@ class Storage(RedisStorage2, CredsMixin, CacheMixin):
         kwargs.setdefault('prefix', 'traktogram')
         if uri:
             options = parse_redis_uri(uri)
-            option_str = ', '.join(map(option_pair, options.items()))
-            logger.debug(f"Connecting to redis: {option_str}")
-            super().__init__(**options, **kwargs)
-        else:
-            logger.debug("Connecting to redis using default parameters.")
-            super().__init__(**kwargs)
+            for k, v in options.items():
+                kwargs.setdefault(k, v)
+        redis_uri = build_redis_uri(**kwargs)
+        logger.debug(f"Connecting to redis: {redis_uri}")
+        super().__init__(**kwargs)
+
+    async def redis(self) -> aioredis.Redis:
+        async with self._connection_lock:
+            if self._redis is None or self._redis.closed:
+                self._redis = await aioredis.create_redis_pool(
+                    (self._host, self._port),
+                    db=self._db, password=self._password, ssl=self._ssl,
+                    minsize=1, maxsize=self._pool_size,
+                    loop=self._loop, **self._kwargs
+                )
+        return self._redis
 
     async def close(self):
         async with self._connection_lock:
             if self._redis and not self._redis.closed:
                 self._redis.close()
-
-    async def wait_closed(self):
-        async with self._connection_lock:
-            if self._redis:
-                await self._redis.wait_closed()
-                del self._redis
-                self._redis = None

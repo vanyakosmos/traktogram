@@ -1,5 +1,6 @@
 import pytest
 
+from traktogram.config import REDIS_URL
 from traktogram.models import CalendarEpisode
 from traktogram.storage import Storage
 
@@ -25,7 +26,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture
 async def store():
-    store = Storage(uri='redis://redis:6379/1', timeout=10)
+    store = Storage(uri=REDIS_URL, db=1)
     try:
         yield store
     finally:
