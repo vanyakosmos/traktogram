@@ -1,8 +1,10 @@
+import asyncio
 import json
 import logging
 from datetime import timedelta
 from functools import wraps
 from typing import Optional
+from types import FunctionType
 
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
@@ -85,10 +87,14 @@ class CacheMixin:
         kwargs.setdefault('expire', self.CACHE_EXPIRY)
         return await conn.set(name, value, **kwargs)
 
-    async def get_cache(self, key):
+    async def get_cache(self, key, expire=None):
         conn, ckey = await self.cache_conn_key
         name = f"{ckey}:{key}"
-        return await conn.get(name)
+        res = await conn.get(name)
+        if res:
+            if expire:
+                await conn.expire(name, expire)
+            return res
 
     async def delete_cache(self, key):
         conn, ckey = await self.cache_conn_key
@@ -96,9 +102,9 @@ class CacheMixin:
         return await conn.delete(name)
 
     @classmethod
-    def make_func_key(cls, func, *args, **kwargs):
-        key = ":".join(map(str, (*args, *kwargs.values())))
-        key = f'{func.__name__}:{key}'
+    def make_func_key(cls, func: FunctionType, *args, **kwargs):
+        key = ":".join(map(repr, (*args, *kwargs.values())))
+        key = f'{func.__module__}.{func.__qualname__}:{key}'
         return key
 
     def cache(self, expire=CACHE_EXPIRY):
@@ -116,6 +122,19 @@ class CacheMixin:
             return dec
 
         return wrap
+
+    async def cached_call(self, func: FunctionType, *args, expire=CACHE_EXPIRY, **kwargs):
+        key = self.make_func_key(func, *args, **kwargs)
+        res = await self.get_cache(key, expire)
+        if res:
+            return json.loads(res)
+        maybe_coro = func(*args, **kwargs)
+        if asyncio.iscoroutinefunction(func):
+            res = await maybe_coro
+        else:
+            res = maybe_coro
+        await self.save_cache(key, json.dumps(res), expire=expire)
+        return res
 
 
 def option_pair(p):
