@@ -25,7 +25,7 @@ def pytest_collection_modifyitems(config, items):
 
 @pytest.fixture
 async def store():
-    store = Storage(uri='redis://localhost:6379/1')
+    store = Storage(uri='redis://redis:6379/1', timeout=10)
     try:
         yield store
     finally:

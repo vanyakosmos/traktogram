@@ -6,7 +6,7 @@ LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 LOG_LEVEL_ROOT = os.getenv('LOG_LEVEL_ROOT', 'WARNING')
 TRAKT_CLIENT_ID = os.getenv('TRAKT_CLIENT_ID')
 TRAKT_CLIENT_SECRET = os.getenv('TRAKT_CLIENT_SECRET')
-REDIS_URI = os.getenv('REDIS_URI')
+REDIS_URL = os.getenv('REDIS_URL')
 
 LOGGING_CONFIG = {
     'version': 1,

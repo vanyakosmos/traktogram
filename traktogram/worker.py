@@ -10,7 +10,7 @@ from attr import attrib
 from related import immutable, to_model
 
 from traktogram import rendering
-from traktogram.config import LOGGING_CONFIG, REDIS_URI
+from traktogram.config import LOGGING_CONFIG, REDIS_URL
 from traktogram.dispatcher import bot
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
@@ -142,7 +142,7 @@ async def on_shutdown(ctx: dict):
 
 
 def get_redis_settings():
-    rs = parse_redis_uri(REDIS_URI)
+    rs = parse_redis_uri(REDIS_URL)
     rs['database'] = rs['db']
     del rs['db']
     return RedisSettings(**rs)

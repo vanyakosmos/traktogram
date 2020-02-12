@@ -6,9 +6,8 @@ from typing import Optional
 
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
-from aioredis.util import parse_url
 
-from traktogram.config import REDIS_URI
+from traktogram.config import REDIS_URL
 from traktogram.models import Model
 from traktogram.utils import parse_redis_uri
 
@@ -127,7 +126,7 @@ def option_pair(p):
 
 
 class Storage(RedisStorage2, CredsMixin, CacheMixin):
-    def __init__(self, uri=REDIS_URI, **kwargs):
+    def __init__(self, uri=REDIS_URL, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
         if uri:
             options = parse_redis_uri(uri)
