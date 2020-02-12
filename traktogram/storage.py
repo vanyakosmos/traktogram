@@ -136,3 +136,15 @@ class Storage(RedisStorage2, CredsMixin, CacheMixin):
         else:
             logger.debug("Connecting to redis using default parameters.")
             super().__init__(**kwargs)
+
+    async def close(self):
+        async with self._connection_lock:
+            if self._redis and not self._redis.closed:
+                self._redis.close()
+
+    async def wait_closed(self):
+        async with self._connection_lock:
+            if self._redis:
+                await self._redis.wait_closed()
+                del self._redis
+                self._redis = None
