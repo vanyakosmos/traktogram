@@ -17,6 +17,7 @@ from yarl import URL
 
 digs = string.digits + string.ascii_letters
 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+episode_num = re.compile(r'ep (\d+)/\d+', re.I)
 
 
 class LogFormatter(colorlog.ColoredFormatter):
@@ -91,7 +92,12 @@ def make_calendar_notification_task_id(func: Union[str, Callable], user_id, show
     return id
 
 
-async def get_9anime_url(title, **kwargs):
+async def get_9anime_url(title, episode: int = None, **kwargs):
+    """
+    Scrap anime url from 9anime.to.
+    If `episode` parameter is specified then url will be returned only if number
+    of aired episode is greater or equal to `episode` param.
+    """
     async with aiohttp.ClientSession(**kwargs) as s:
         url = URL('https://9anime.to/filter')
         url = url.update_query([
@@ -102,9 +108,18 @@ async def get_9anime_url(title, **kwargs):
             ('language[]', 'subbed'),
         ])
         r = await s.get(url)
+
         root = html.fromstring(await r.read())
-        el = root.xpath("(//div[@class='film-list']//a)[1]")[0]
-        return el.get("href")
+        item = root.xpath("(//div[@class='film-list']/div[@class='item'])[1]")[0]
+        href = item.xpath('.//a')[0].get("href")
+
+        if episode is not None:
+            ep = item.xpath(".//div[@class='status']//div[@class='ep']")[0].text
+            ep = int(episode_num.search(ep)[1])
+            if ep >= episode:
+                return href
+            return
+        return href
 
 
 @singledispatch

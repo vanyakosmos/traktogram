@@ -23,6 +23,19 @@ async def test_get_9anime_url(loop):
     assert url.startswith('https://9anime.to/watch/fullmetal-alchemist')
 
 
+@pytest.mark.slow
+@pytest.mark.parametrize("episode, success", [
+    (50, True),
+    (69, False),
+])
+async def test_get_9anime_url_episode(loop, episode, success):
+    url = await get_9anime_url("alchemist", loop=loop, episode=episode)
+    if success:
+        assert url.startswith('https://9anime.to/watch/fullmetal-alchemist')
+    else:
+        assert url is None
+
+
 @pytest.mark.asyncio
 async def test_creds(store):
     async for user_id, creds in store.creds_iter():

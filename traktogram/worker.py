@@ -144,8 +144,9 @@ async def on_shutdown(ctx: dict):
 
 def get_redis_settings():
     rs = parse_redis_uri(REDIS_URL)
-    rs['database'] = rs['db']
-    del rs['db']
+    if 'db' in rs:
+        rs['database'] = rs['db']
+        del rs['db']
     return RedisSettings(**rs)
 
 
