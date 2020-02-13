@@ -30,20 +30,3 @@ async def cancel_handler(message: Message):
         dp.storage.finish(user=message.from_user.id),
         message.answer("Whatever it was, it was canceled."),
     )
-
-
-@dp.command_handler('logout', help="logout")
-async def logout_handler(message: Message):
-    user_id = message.from_user.id
-    creds = await dp.storage.get_creds(user_id)
-    if creds:
-        keys = await get_tasks_keys(dp.queue, user_id)
-        sess = dp.trakt.auth(creds.access_token)
-        await asyncio.gather(
-            sess.revoke_token(),
-            dp.storage.remove_creds(message.from_user.id),
-            message.answer("Successfully logged out."),
-            dp.queue.delete(*keys),
-        )
-    else:
-        await message.answer("You weren't logged in.")

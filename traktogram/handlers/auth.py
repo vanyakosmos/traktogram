@@ -5,7 +5,7 @@ from aiogram.types import Message
 
 from traktogram.dispatcher import dp
 from traktogram.rendering import render_html
-from traktogram.worker import schedule_calendar_notification
+from traktogram.worker import schedule_calendar_notification, get_tasks_keys
 
 
 logger = logging.getLogger(__name__)
@@ -41,7 +41,7 @@ async def process_auth_flow(message: Message):
 
 @dp.command_handler('auth', help="log into trakt.tv")
 async def auth_handler(message: Message):
-    logger.debug("auth command")
+    logger.debug("sign in")
     user_id = message.from_user.id
 
     if await dp.storage.has_creds(user_id):
@@ -58,3 +58,21 @@ async def auth_handler(message: Message):
             await schedule_calendar_notification(sess, dp.queue, user_id)
     finally:
         await dp.storage.finish(user=user_id)
+
+
+@dp.command_handler('logout', help="logout")
+async def logout_handler(message: Message):
+    logger.debug("sign out")
+    user_id = message.from_user.id
+    creds = await dp.storage.get_creds(user_id)
+    if creds:
+        keys = await get_tasks_keys(dp.queue, user_id)
+        sess = dp.trakt.auth(creds.access_token)
+        await asyncio.gather(
+            sess.revoke_token(),
+            dp.storage.remove_creds(message.from_user.id),
+            message.answer("Successfully logged out."),
+            dp.queue.delete(*keys),
+        )
+    else:
+        await message.answer("You are not logged in. Use /auth to authenticate.")
