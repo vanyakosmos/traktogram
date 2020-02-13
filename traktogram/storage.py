@@ -10,7 +10,6 @@ import aioredis
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 
-from traktogram.config import REDIS_URL
 from traktogram.models import Model
 from traktogram.utils import parse_redis_uri
 
@@ -147,7 +146,7 @@ def build_redis_uri(host='localhost', port=6379, db=None, password=None, **kwarg
 
 
 class Storage(RedisStorage2, CredsMixin, CacheMixin):
-    def __init__(self, uri=REDIS_URL, **kwargs):
+    def __init__(self, uri=None, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
         if uri:
             options = parse_redis_uri(uri)

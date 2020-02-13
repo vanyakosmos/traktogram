@@ -1,12 +1,12 @@
 import importlib
 import logging
-import logging.config
 
 import arq
 from aiogram.utils import executor
 
-from traktogram.config import LOGGING_CONFIG
+from traktogram.config import REDIS_URL
 from traktogram.dispatcher import Dispatcher, dp
+from traktogram.logging_setup import setup_logging
 from traktogram.storage import Storage
 from traktogram.trakt import TraktClient
 from traktogram.worker import get_redis_settings
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 
 async def on_startup(dispatcher: Dispatcher, **kwargs):
-    logger.debug('startup')
-    dispatcher.storage = Storage()
+    logger.debug('starting up services')
+    dispatcher.storage = Storage(REDIS_URL)
     dispatcher.queue = await arq.create_pool(get_redis_settings())
     dispatcher.trakt = TraktClient()
     importlib.import_module('traktogram.handlers')  # setup handlers
@@ -26,14 +26,15 @@ async def on_startup(dispatcher: Dispatcher, **kwargs):
 
 
 async def on_shutdown(dispatcher: Dispatcher):
-    logger.debug('shutdown')
     await dispatcher.trakt.close()
     dispatcher.queue.close()
     await dispatcher.queue.wait_closed()
+    # storage and bot will be closed in dispatcher
+    logger.debug('services were shutdown')
 
 
 def main():
-    logging.config.dictConfig(LOGGING_CONFIG)
+    setup_logging()
     executor.start_polling(dp, on_startup=on_startup, on_shutdown=on_shutdown, skip_updates=True)
 
 

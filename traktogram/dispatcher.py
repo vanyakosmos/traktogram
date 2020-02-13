@@ -22,7 +22,7 @@ def log_register(f):
             lines.append(', '.join(map(lambda e: f"{e[0]}={e[1]!r}", kwargs.items())))
         text = '\n'.join(lines)
         text = textwrap.indent(text, prefix='    ')
-        logger.debug(f"\nregistered {callback.__name__.upper()}:\n{text}")
+        logger.debug(f"registered \033[1m{callback.__name__}\033[0m:\n{text}")
         return f(self, callback, *args, **kwargs)
 
     return dec

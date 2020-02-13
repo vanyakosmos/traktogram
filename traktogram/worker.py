@@ -1,17 +1,18 @@
 import logging
-import logging.config
 from functools import wraps
 from typing import List
 
-from arq import Worker, cron
+import arq
+from arq import cron
 from arq.connections import ArqRedis, RedisSettings
 from arq.constants import job_key_prefix
 from attr import attrib
 from related import immutable, to_model
 
 from traktogram import rendering
-from traktogram.config import LOGGING_CONFIG, REDIS_URL
+from traktogram.config import REDIS_URL
 from traktogram.dispatcher import bot
+from traktogram.logging_setup import setup_logging
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
 from traktogram.storage import Storage
@@ -131,7 +132,7 @@ async def schedule_tokens_refresh(ctx: Context):
 
 async def on_startup(ctx: dict):
     ctx['trakt'] = TraktClient()
-    ctx['storage'] = Storage()
+    ctx['storage'] = Storage(REDIS_URL)
 
 
 async def on_shutdown(ctx: dict):
@@ -154,19 +155,21 @@ async def get_tasks_keys(queue: ArqRedis, user_id):
     return keys
 
 
-def main():
-    logging.config.dictConfig(LOGGING_CONFIG)
-    worker = Worker(
-        (send_calendar_notifications, send_calendar_multi_notifications),
-        cron_jobs=[
-            cron(schedule_calendar_notifications, hour=0, minute=0, second=0),
-            cron(schedule_tokens_refresh, weekday=1, hour=0, minute=0, second=0),
-        ],
-        redis_settings=get_redis_settings(),
-        keep_result=0,
-        on_startup=on_startup,
-        on_shutdown=on_shutdown,
+class WorkerConfig:
+    functions = (send_calendar_notifications, send_calendar_multi_notifications)
+    cron_jobs = (
+        cron(schedule_calendar_notifications, hour=0, minute=0, second=0),
+        cron(schedule_tokens_refresh, weekday=1, hour=0, minute=0, second=0),
     )
+    keep_result = 0
+    redis_settings = get_redis_settings()
+    on_startup = on_startup
+    on_shutdown = on_shutdown
+
+
+def main():
+    setup_logging()
+    worker = arq.worker.create_worker(WorkerConfig)
     worker.run()
 
 
