@@ -7,6 +7,7 @@ from arq import ArqRedis
 
 from .config import BOT_TOKEN
 from .storage import Storage
+from .trakt import TraktClient
 from .utils import to_str
 
 
@@ -32,7 +33,7 @@ class Dispatcher(aiogram.Dispatcher):
     def __init__(self, *args, storage: Storage = None, **kwargs):
         super(Dispatcher, self).__init__(*args, storage=storage, **kwargs)
         self.commands_help = {}
-        self.trakt: Optional['TraktClient'] = None
+        self.trakt: Optional[TraktClient] = None
         self.storage = storage
         self.queue: Optional[ArqRedis] = None
 
@@ -57,3 +58,4 @@ class Dispatcher(aiogram.Dispatcher):
 
 bot = aiogram.Bot(token=BOT_TOKEN, parse_mode='html')
 dp = Dispatcher(bot)
+dp.errors_handlers.once = True  # forbid error to propagate

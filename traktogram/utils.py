@@ -5,6 +5,7 @@ import textwrap
 from datetime import datetime
 from functools import singledispatch
 from logging import LogRecord
+from types import FunctionType
 from typing import Callable, List, Union
 
 import aiohttp
@@ -125,6 +126,11 @@ async def get_9anime_url(title, episode: int = None, **kwargs):
 @singledispatch
 def to_str(v):
     return str(v)
+
+
+@to_str.register
+def _(v: FunctionType):
+    return f"Function({v.__module__}:{v.__qualname__})"
 
 
 @to_str.register

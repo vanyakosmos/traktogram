@@ -6,8 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pprint import pprint
 
-from arq import create_pool
-from arq.constants import job_key_prefix
+from arq import create_pool, Worker
 
 from traktogram.worker import *
 
@@ -163,5 +162,5 @@ async def main():
 
 
 if __name__ == '__main__':
-    logging.config.dictConfig(LOGGING_CONFIG)
+    setup_logging()
     asyncio.get_event_loop().run_until_complete(main())

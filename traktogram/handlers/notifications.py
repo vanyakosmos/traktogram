@@ -125,3 +125,18 @@ async def calendar_multi_notification_watch_handler(query: CallbackQuery, callba
             h.watched = False
     answer = f"marked as watched" if watched_current else "unwatched"
     await h.update_message(answer)
+
+
+@dp.callback_query_handler(episode_cd.filter(action='refresh'))
+async def refresh_callback(query: CallbackQuery, callback_data: dict):
+    answer = asyncio.create_task(query.answer("refreshing"))
+    episode_id = callback_data['id']
+    creds = await dp.storage.get_creds(query.from_user.id)
+    sess = dp.trakt.auth(creds.access_token)
+    se = await sess.search_by_episode_id(episode_id, extended=True)
+    watched = await sess.watched(se.episode.ids.trakt)
+    keyboard_markup = await calendar_notification_markup(se, watched=watched)
+    await asyncio.gather(
+        query.message.edit_reply_markup(keyboard_markup),
+        answer,
+    )

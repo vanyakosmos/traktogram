@@ -25,16 +25,21 @@ def decode_ids(ids: str):
 
 
 async def calendar_notification_markup(se: ShowEpisode, watched: bool):
+    episode_id = se.episode.ids.trakt
     mark = '✅' if watched else '❌'
     keyboard_markup = InlineKeyboardMarkup(inline_keyboard=[
         [
             IKB(f'{mark} watched',
-                callback_data=episode_cd.new(id=se.episode.ids.trakt, action='watch')),
+                callback_data=episode_cd.new(id=episode_id, action='watch')),
         ]
     ])
     source, watch_url = await se.episode.watch_url
     if source:
-        btn = IKB(f'watch on {source}', url=watch_url)
+        if watch_url is None:
+            btn = IKB(f'🔄 not view url',
+                      callback_data=episode_cd.new(id=episode_id, action='refresh'))
+        else:
+            btn = IKB(f'watch on {source}', url=watch_url)
         keyboard_markup.inline_keyboard[-1].append(btn)
     return keyboard_markup
 

@@ -16,7 +16,7 @@ class CustomHandler(logging.StreamHandler):
         super(CustomHandler, self).__init__()
 
     def emit(self, record):
-        messages = record.msg.splitlines()
+        messages = str(record.msg).splitlines()
         for message in messages:
             record.msg = message
             super(CustomHandler, self).emit(record)
