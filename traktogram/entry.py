@@ -37,7 +37,7 @@ class Executor(executor.Executor):
         if with_worker:
             self.loop.run_until_complete(self._run_worker())
         else:
-            logger.warning("Bot have started without worker.")
+            logger.warning("Bot has started without worker.")
             self.loop.run_forever()
 
     def run_polling(self, wait_closed=False):

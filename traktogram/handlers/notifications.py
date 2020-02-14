@@ -9,10 +9,12 @@ from traktogram.markup import (
     calendar_multi_notification_markup, calendar_notification_markup, decode_ids, episode_cd,
     episodes_cd
 )
+from traktogram.router import Router
 from traktogram.trakt import TraktSession
 
 
 logger = logging.getLogger(__name__)
+router = Router()
 
 
 async def toggle_watched_status(sess: TraktSession, episode_id, watched: bool):
@@ -73,7 +75,7 @@ class CalendarMultiNotificationHelper:
         )
 
 
-@dp.callback_query_handler(episode_cd.filter(action='watch'))
+@router.callback_query_handler(episode_cd.filter(action='watch'))
 async def calendar_notification_watch_handler(query: CallbackQuery, callback_data: dict):
     episode_id = callback_data['id']
     creds = await dp.storage.get_creds(query.from_user.id)
@@ -90,7 +92,7 @@ async def calendar_notification_watch_handler(query: CallbackQuery, callback_dat
     )
 
 
-@dp.callback_query_handler(episodes_cd.filter(action='prev'))
+@router.callback_query_handler(episodes_cd.filter(action='prev'))
 async def calendar_multi_notification_prev_handler(query: CallbackQuery, callback_data: dict):
     h = CalendarMultiNotificationHelper(query)
     if h.index == 0:
@@ -101,7 +103,7 @@ async def calendar_multi_notification_prev_handler(query: CallbackQuery, callbac
     await h.update_message()
 
 
-@dp.callback_query_handler(episodes_cd.filter(action='next'))
+@router.callback_query_handler(episodes_cd.filter(action='next'))
 async def calendar_multi_notification_next_handler(query: CallbackQuery, callback_data: dict):
     h = CalendarMultiNotificationHelper(query)
     if h.index == len(h.episodes_ids) - 1:
@@ -112,7 +114,7 @@ async def calendar_multi_notification_next_handler(query: CallbackQuery, callbac
     await h.update_message()
 
 
-@dp.callback_query_handler(episodes_cd.filter(action='watch'))
+@router.callback_query_handler(episodes_cd.filter(action='watch'))
 async def calendar_multi_notification_watch_handler(query: CallbackQuery, callback_data: dict):
     h = CalendarMultiNotificationHelper(query)
     async with h.fetch_episode_data_context() as sess:
@@ -127,7 +129,7 @@ async def calendar_multi_notification_watch_handler(query: CallbackQuery, callba
     await h.update_message(answer)
 
 
-@dp.callback_query_handler(episode_cd.filter(action='refresh'))
+@router.callback_query_handler(episode_cd.filter(action='refresh'))
 async def refresh_callback(query: CallbackQuery, callback_data: dict):
     answer = asyncio.create_task(query.answer("refreshing"))
     episode_id = callback_data['id']

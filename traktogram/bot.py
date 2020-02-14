@@ -1,4 +1,3 @@
-import importlib
 import logging
 
 import arq
@@ -20,7 +19,9 @@ async def on_startup(dispatcher: Dispatcher, **kwargs):
     dispatcher.storage = Storage(REDIS_URL)
     dispatcher.queue = await arq.create_pool(get_redis_settings())
     dispatcher.trakt = TraktClient()
-    importlib.import_module('traktogram.handlers')  # setup handlers
+    from traktogram.handlers import auth_router, cmd_router, notification_router, error_router
+    for router in (auth_router, cmd_router, notification_router, error_router):
+        dispatcher.add_router(router)
 
     await dispatcher.storage.redis()  # test connection
 

@@ -5,10 +5,12 @@ from aiogram.types import Message
 
 from traktogram.dispatcher import dp
 from traktogram.rendering import render_html
+from traktogram.router import Router
 from traktogram.worker import schedule_calendar_notification, get_tasks_keys
 
 
 logger = logging.getLogger(__name__)
+router = Router()
 
 
 async def process_auth_flow(message: Message):
@@ -39,7 +41,7 @@ async def process_auth_flow(message: Message):
         await reply.edit_text("❌ failed to authenticated in time")
 
 
-@dp.command_handler('auth', help="log into trakt.tv")
+@router.command_handler('auth', help="log into trakt.tv")
 async def auth_handler(message: Message):
     logger.debug("sign in")
     user_id = message.from_user.id
@@ -60,7 +62,7 @@ async def auth_handler(message: Message):
         await dp.storage.finish(user=user_id)
 
 
-@dp.command_handler('logout', help="logout")
+@router.command_handler('logout', help="logout")
 async def logout_handler(message: Message):
     logger.debug("sign out")
     user_id = message.from_user.id
