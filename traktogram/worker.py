@@ -4,6 +4,7 @@ from functools import wraps
 from typing import List
 
 import arq
+from aiogram import Bot
 from arq import cron
 from arq.connections import ArqRedis, RedisSettings
 from arq.constants import job_key_prefix
@@ -11,8 +12,7 @@ from attr import attrib
 from related import immutable, to_model
 
 from traktogram import rendering
-from traktogram.config import REDIS_URL
-from traktogram.dispatcher import bot
+from traktogram.config import REDIS_URL, BOT_TOKEN
 from traktogram.logging_setup import setup_logging
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
@@ -30,6 +30,7 @@ class Context:
     redis = attrib(type=ArqRedis)
     trakt = attrib(type=TraktClient)
     storage = attrib(type=Storage)
+    bot = attrib(type=Bot)
 
     def keys(self):
         return [a.name for a in self.__attrs_attrs__]
@@ -69,7 +70,7 @@ async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEp
     sess = ctx.trakt.auth(creds.access_token)
     watched = await sess.watched(ce.episode.ids.trakt)
     keyboard_markup = await calendar_notification_markup(ce, watched=watched)
-    await bot.send_message(user_id, text, reply_markup=keyboard_markup)
+    await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
 @with_context
@@ -86,7 +87,7 @@ async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes
     watched = await sess.watched(first.episode.ids.trakt)
     episodes_ids = [cs.episode.ids.trakt for cs in episodes]
     keyboard_markup = calendar_multi_notification_markup(first, episodes_ids, watched)
-    await bot.send_message(user_id, text, reply_markup=keyboard_markup)
+    await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
 async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id):
@@ -135,13 +136,14 @@ async def schedule_tokens_refresh(ctx: Context):
 async def on_startup(ctx: dict):
     ctx['trakt'] = TraktClient()
     ctx['storage'] = Storage(REDIS_URL)
+    ctx['bot'] = Bot(BOT_TOKEN, parse_mode='html')
 
 
 async def on_shutdown(ctx: dict):
     await ctx['trakt'].close()
     await ctx['storage'].close()
     await ctx['storage'].wait_closed()
-    await bot.close()
+    await ctx['bot'].close()
 
 
 def get_redis_settings():

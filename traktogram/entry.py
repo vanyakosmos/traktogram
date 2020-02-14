@@ -3,11 +3,10 @@ import logging.config
 from asyncio import CancelledError
 
 import arq
-from aiogram import executor
+from aiogram import executor, Bot
 
-from traktogram.bot import on_shutdown, on_startup
-from traktogram.config import WORKER
-from traktogram.dispatcher import dp
+from traktogram.bot import on_shutdown, on_startup, make_dispatcher
+from traktogram.config import WORKER, BOT_TOKEN
 from traktogram.logging_setup import setup_logging
 from traktogram.worker import WorkerConfig
 
@@ -33,7 +32,7 @@ class Executor(executor.Executor):
         self._prepare_polling()
         self.loop.run_until_complete(self._startup_polling())
 
-        self.loop.create_task(dp.start_polling())
+        self.loop.create_task(self.dispatcher.start_polling())
         if with_worker:
             self.loop.run_until_complete(self._run_worker())
         else:
@@ -53,6 +52,8 @@ def main():
     setup_logging()
     logger.warning('>>>>> start <<<<<')
     loop = asyncio.get_event_loop()
+    bot = Bot(token=BOT_TOKEN, parse_mode='html')
+    dp = make_dispatcher(bot)
     ex = Executor(dp, loop=loop)
     ex.on_startup(on_startup)
     ex.on_shutdown(on_shutdown)
