@@ -1,16 +1,17 @@
 import logging
 import textwrap
+from contextvars import ContextVar
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Dict, Tuple, Union
 
 import aiogram
-from arq import ArqRedis
+from aiogram.utils.mixins import ContextInstanceMixin
 
 from .storage import Storage
-from .trakt import TraktClient
 from .utils import to_str
 
 
+MaybeContextVar = Union[ContextInstanceMixin, Tuple[ContextVar, Any]]
 logger = logging.getLogger(__name__)
 
 
@@ -99,9 +100,8 @@ class Dispatcher(aiogram.Dispatcher):
     def __init__(self, *args, storage: Storage = None, **kwargs):
         super(Dispatcher, self).__init__(*args, storage=storage, **kwargs)
         self.commands_help = {}
-        self.trakt: Optional[TraktClient] = None
         self.storage = storage
-        self.queue: Optional[ArqRedis] = None
+        self.context_vars: Dict[str, MaybeContextVar] = {}
 
         for register in ('register_message_handler', 'register_callback_query_handler', 'register_errors_handler'):
             method = getattr(self.__class__, register)
@@ -126,3 +126,25 @@ class Dispatcher(aiogram.Dispatcher):
             self.register_callback_query_handler(*holder.args, **holder.kwargs)
         for holder in router.errors_handlers:
             self.register_errors_handler(*holder.args, **holder.kwargs)
+
+    def gen_context(self):
+        for key, var in self.context_vars.items():
+            if isinstance(var, ContextInstanceMixin):
+                yield key, var
+            else:
+                yield key, var[1]
+
+    def contextualize(self, *args: MaybeContextVar):
+        for arg in args:
+            if isinstance(arg, ContextInstanceMixin):
+                arg.__class__.set_current(arg)
+            else:
+                var, val = arg
+                # noinspection PyArgumentList
+                var.set(val)
+
+    async def start_polling(self, *args, **kwargs):
+        if self._polling:
+            raise RuntimeError('Polling already started')
+        self.contextualize(*self.context_vars.values())
+        return await super(Dispatcher, self).start_polling(*args, **kwargs)

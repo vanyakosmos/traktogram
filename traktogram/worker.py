@@ -1,3 +1,4 @@
+import contextvars
 import logging
 from functools import wraps
 from typing import List
@@ -21,6 +22,7 @@ from traktogram.utils import make_calendar_notification_task_id, parse_redis_uri
 
 
 logger = logging.getLogger(__name__)
+worker_queue_var = contextvars.ContextVar('worker_queue_var')
 
 
 @immutable

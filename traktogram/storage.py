@@ -9,6 +9,7 @@ from typing import Optional
 import aioredis
 import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
+from aiogram.utils.mixins import ContextInstanceMixin
 
 from traktogram.models import Model
 from traktogram.utils import parse_redis_uri
@@ -145,7 +146,7 @@ def build_redis_uri(host='localhost', port=6379, db=None, password=None, **kwarg
     return uri
 
 
-class Storage(RedisStorage2, CredsMixin, CacheMixin):
+class Storage(RedisStorage2, CredsMixin, CacheMixin, ContextInstanceMixin):
     def __init__(self, uri=None, **kwargs):
         kwargs.setdefault('prefix', 'traktogram')
         if uri:

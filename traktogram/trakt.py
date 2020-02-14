@@ -4,6 +4,7 @@ from datetime import datetime
 from time import time
 from typing import List, Optional
 
+from aiogram.utils.mixins import ContextInstanceMixin
 from aiohttp import ClientSession
 from yarl import URL
 
@@ -181,7 +182,7 @@ class TraktSession(AuthMixin, HistoryMixin):
         return ShowEpisode.from_dict(data[0])
 
 
-class TraktClient:
+class TraktClient(ContextInstanceMixin):
     def __init__(self):
         self.session = ClientSession()
 

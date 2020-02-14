@@ -3,10 +3,11 @@ import logging
 
 from aiogram.types import Message
 
-from traktogram.dispatcher import dp
 from traktogram.rendering import render_html
 from traktogram.router import Router
-from traktogram.worker import schedule_calendar_notification, get_tasks_keys
+from traktogram.storage import Storage
+from traktogram.trakt import TraktClient
+from traktogram.worker import schedule_calendar_notification, get_tasks_keys, worker_queue_var
 
 
 logger = logging.getLogger(__name__)
@@ -14,8 +15,11 @@ router = Router()
 
 
 async def process_auth_flow(message: Message):
+    storage = Storage.get_current()
+    trakt = TraktClient.get_current()
     user_id = message.from_user.id
-    sess = dp.trakt.auth()
+
+    sess = trakt.auth()
     flow = sess.device_auth_flow()
     data = await flow.__anext__()
     code = data['user_code']
@@ -24,13 +28,13 @@ async def process_auth_flow(message: Message):
     reply_kwargs = dict(disable_web_page_preview=True)
     reply = await message.answer(msg_text, **reply_kwargs)
     async for ok, data in flow:
-        state = await dp.storage.get_state(user=user_id)
+        state = await storage.get_state(user=user_id)
         if state != 'auth':
             await reply.edit_text("❌ canceled", **reply_kwargs)
             return
         if ok:
             await asyncio.gather(
-                dp.storage.save_creds(user_id, data),
+                storage.save_creds(user_id, data),
                 reply.edit_text("✅ successfully authenticated"),
             )
             return data['access_token']
@@ -43,38 +47,43 @@ async def process_auth_flow(message: Message):
 
 @router.command_handler('auth', help="log into trakt.tv")
 async def auth_handler(message: Message):
-    logger.debug("sign in")
+    storage = Storage.get_current()
+    trakt = TraktClient.get_current()
+    queue = worker_queue_var.get()
     user_id = message.from_user.id
 
-    if await dp.storage.has_creds(user_id):
+    if await storage.has_creds(user_id):
         logger.debug("user already authenticated")
         text = "You are already authenticated. Do you want to /logout?"
         await message.answer(text)
         return
 
-    await dp.storage.set_state(user=user_id, state='auth')
+    await storage.set_state(user=user_id, state='auth')
     try:
         access_token = await process_auth_flow(message)
         if access_token:
-            sess = dp.trakt.auth(access_token)
-            await schedule_calendar_notification(sess, dp.queue, user_id)
+            sess = trakt.auth(access_token)
+            await schedule_calendar_notification(sess, queue, user_id)
     finally:
-        await dp.storage.finish(user=user_id)
+        await storage.finish(user=user_id)
 
 
 @router.command_handler('logout', help="logout")
 async def logout_handler(message: Message):
-    logger.debug("sign out")
+    storage = Storage.get_current()
+    trakt = TraktClient.get_current()
+    queue = worker_queue_var.get()
     user_id = message.from_user.id
-    creds = await dp.storage.get_creds(user_id)
+
+    creds = await storage.get_creds(user_id)
     if creds:
-        keys = await get_tasks_keys(dp.queue, user_id)
-        sess = dp.trakt.auth(creds.access_token)
+        keys = await get_tasks_keys(queue, user_id)
+        sess = trakt.auth(creds.access_token)
         await asyncio.gather(
             sess.revoke_token(),
-            dp.storage.remove_creds(message.from_user.id),
+            storage.remove_creds(message.from_user.id),
             message.answer("Successfully logged out."),
-            dp.queue.delete(*keys),
+            queue.delete(*keys),
         )
     else:
         await message.answer("You are not logged in. Use /auth to authenticate.")
