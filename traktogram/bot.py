@@ -5,6 +5,7 @@ from aiogram import Bot
 from aiogram.utils import executor
 
 from traktogram.config import REDIS_URL, BOT_TOKEN
+from traktogram.filters import CmdArgs
 from traktogram.logging_setup import setup_logging
 from traktogram.middlewares import LoggingMiddleware
 from traktogram.router import Dispatcher
@@ -49,6 +50,7 @@ def make_dispatcher(bot: Bot):
     dp = Dispatcher(bot)
     dp.errors_handlers.once = True  # forbid error to propagate
     dp.middleware.setup(LoggingMiddleware())
+    dp.filters_factory.bind(CmdArgs, event_handlers=[dp.message_handlers])
     return dp
 
 

@@ -1,0 +1,7 @@
+{% for ce in episodes %}
+  <code>{{ ce.first_aired.strftime('%Y-%m-%d %H:%M') }}</code> - <b>{{ ce.show.title }}</b>
+  <br/>
+  > {{ ce.episode.season }}x{{ ce.episode.number }} - "{{ ce.episode.title }}"
+  <br/>
+  <br/>
+{% endfor %}

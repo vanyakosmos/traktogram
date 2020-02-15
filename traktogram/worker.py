@@ -90,8 +90,10 @@ async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes
     await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
-async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id):
-    episodes = await sess.calendar_shows(extended=True)
+async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id,
+                                         episodes=None, start_date=None, days=7):
+    if episodes is None:
+        episodes = await sess.calendar_shows(start_date, days, extended=True)
     logger.debug(f"fetched {len(episodes)} episodes")
     groups = CalendarEpisode.group_by_show(episodes)
     for group in groups:

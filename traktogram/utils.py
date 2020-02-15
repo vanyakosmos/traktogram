@@ -111,7 +111,10 @@ async def get_9anime_url(title, episode: int = None, **kwargs):
         r = await s.get(url)
 
         root = html.fromstring(await r.read())
-        item = root.xpath("(//div[@class='film-list']/div[@class='item'])[1]")[0]
+        items = root.xpath("(//div[@class='film-list']/div[@class='item'])[1]")
+        if not items:
+            return
+        item = items[0]
         href = item.xpath('.//a')[0].get("href")
 
         if episode is not None:

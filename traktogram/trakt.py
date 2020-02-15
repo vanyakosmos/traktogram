@@ -15,6 +15,11 @@ from .models import CalendarEpisode, Episode, ShowEpisode
 logger = logging.getLogger(__name__)
 
 
+class TraktException(Exception):
+    def __init__(self, data):
+        self.data = data
+
+
 class Session:
     def __init__(self, session: ClientSession, access_token=None):
         self.base = URL('https://api.trakt.tv')
@@ -155,6 +160,8 @@ class TraktSession(AuthMixin, HistoryMixin):
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
+        if r.status != 200:
+            raise TraktException(data)
         return [CalendarEpisode.from_dict(e) for e in data]
 
     async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
