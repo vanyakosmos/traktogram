@@ -20,17 +20,18 @@ class Executor(executor.Executor):
             WorkerConfig,
             on_startup=None,
             on_shutdown=None,
-            redis_pool=self.dispatcher.queue,
+            redis_pool=self.dispatcher.context_vars['queue'][1],
             ctx={
-                'trakt': self.dispatcher.trakt,
-                'storage': self.dispatcher.storage,
+                'bot': self.dispatcher.bot,
+                'trakt': self.dispatcher.context_vars['trakt'],
+                'storage': self.dispatcher.context_vars['storage'],
             },
         )
         return worker.async_run()
 
     def _run_polling(self, with_worker=True):
         self._prepare_polling()
-        self.loop.run_until_complete(self._startup_polling())
+        self.loop.run_until_complete(self._startup_polling())  # welcome + services setup
 
         self.loop.create_task(self.dispatcher.start_polling())
         if with_worker:
@@ -45,7 +46,7 @@ class Executor(executor.Executor):
         except (KeyboardInterrupt, SystemExit, CancelledError):
             pass
         finally:
-            self.loop.run_until_complete(self._shutdown_polling())
+            self.loop.run_until_complete(self._shutdown_polling())  # shut down services
 
 
 def main():
