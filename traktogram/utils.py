@@ -1,5 +1,6 @@
 import logging
 import math
+import os
 import re
 import string
 import textwrap
@@ -95,23 +96,30 @@ def make_calendar_notification_task_id(func: Union[str, Callable], user_id, show
     return id
 
 
-async def get_9anime_url(title, episode: int = None, **kwargs):
+async def get_9anime_url(query: str, episode: int = None, **kwargs):
     """
     Scrap anime url from 9anime.to.
     If `episode` parameter is specified then url will be returned only if number
     of aired episode is greater or equal to `episode` param.
     """
-    async with aiohttp.ClientSession(**kwargs) as s:
+    async with aiohttp.ClientSession(trust_env=True, **kwargs) as s:
         url = URL('https://9anime.to/filter')
         url = url.update_query([
             # on 9anime only keyword filter works properly...
-            ('keyword', title),
+            ('keyword', query),
         ])
-        r = await s.get(url)
+        r = await s.get(url, headers={
+            'user-agent': os.getenv('FAKE_USER_AGENT', ''),
+            'Cookie': os.getenv('FAKE_COOKIES', ''),
+            'Upgrade-Insecure-Requests': '1',
+        })
 
         text = await r.read()
         root = html.fromstring(text)
+        from pathlib import Path
+        Path('ep.html').write_bytes(text)
         items = root.xpath("(//div[@class='film-list']/div[@class='item'])")
+        logger.debug(f"found {len(items)} items")
         for item in items:
             el = item.xpath(".//div[@class='status']//div[@class='dub' or @class='special' or @class='movie']")
             if not el:
@@ -120,7 +128,7 @@ async def get_9anime_url(title, episode: int = None, **kwargs):
             logger.debug("everything is dubbed/special/movie")
             return
         href = item.xpath('.//a')[0].get("href")
-        logger.debug(f"found url for {title!r} - {href}")
+        logger.debug(f"found url for {query!r} - {href}")
         if episode is not None:
             ep = item.xpath(".//div[@class='status']//div[@class='ep']")[0].text
             ep = int(episode_num.search(ep)[1])

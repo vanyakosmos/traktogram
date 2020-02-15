@@ -69,7 +69,7 @@ class Episode(Model):
         if self.show is None:
             return None, None
         if self.show.language == 'ja':
-            url = await get_9anime_url(self.show.title)
+            url = await get_9anime_url(f"{self.show.title} {self.season}")
             return '9anime', url
         return None, None
 
