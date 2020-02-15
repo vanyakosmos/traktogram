@@ -102,19 +102,21 @@ async def get_9anime_url(title, episode: int = None, **kwargs):
     async with aiohttp.ClientSession(**kwargs) as s:
         url = URL('https://9anime.to/filter')
         url = url.update_query([
+            # on 9anime only keyword filter works properly...
             ('keyword', title),
-            ('type[]', 'series'),
-            ('type[]', 'ova'),
-            ('type[]', 'ona'),
-            ('language[]', 'subbed'),
         ])
         r = await s.get(url)
 
-        root = html.fromstring(await r.read())
-        items = root.xpath("(//div[@class='film-list']/div[@class='item'])[1]")
-        if not items:
+        text = await r.read()
+        root = html.fromstring(text)
+        items = root.xpath("(//div[@class='film-list']/div[@class='item'])")
+        for item in items:
+            el = item.xpath(".//div[@class='status']//div[@class='dub' or @class='special' or @class='movie']")
+            if not el:
+                break
+        else:
+            # everything is dubbed/special/movie
             return
-        item = items[0]
         href = item.xpath('.//a')[0].get("href")
 
         if episode is not None:

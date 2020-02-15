@@ -4,13 +4,13 @@ from contextlib import asynccontextmanager
 
 from aiogram.types import CallbackQuery
 
+from traktogram.handlers.utils import trakt_session
 from traktogram.markup import (
     calendar_multi_notification_markup, calendar_notification_markup, decode_ids, episode_cd,
     episodes_cd
 )
 from traktogram.router import Router
-from traktogram.storage import Storage
-from traktogram.trakt import TraktSession, TraktClient
+from traktogram.trakt import TraktSession
 
 
 logger = logging.getLogger(__name__)
@@ -57,11 +57,7 @@ class CalendarMultiNotificationHelper:
 
     @asynccontextmanager
     async def fetch_episode_data_context(self):
-        storage = Storage.get_current()
-        trakt = TraktClient.get_current()
-
-        creds = await storage.get_creds(self.query.from_user.id)
-        sess = trakt.auth(creds.access_token)
+        sess = await trakt_session(self.query.from_user.id)
         self.watched = await sess.watched(self.episode_id)
         yield sess
         self.se = await sess.search_by_episode_id(self.episode_id)
@@ -80,12 +76,9 @@ class CalendarMultiNotificationHelper:
 
 @router.callback_query_handler(episode_cd.filter(action='watch'))
 async def calendar_notification_watch_handler(query: CallbackQuery, callback_data: dict):
-    storage = Storage.get_current()
-    trakt = TraktClient.get_current()
     episode_id = callback_data['id']
 
-    creds = await storage.get_creds(query.from_user.id)
-    sess = trakt.auth(creds.access_token)
+    sess = await trakt_session(query.from_user.id)
     watched = await sess.watched(episode_id)
     watched = await toggle_watched_status(sess, episode_id, watched)
     se = await sess.search_by_episode_id(episode_id, extended=True)
@@ -137,18 +130,17 @@ async def calendar_multi_notification_watch_handler(query: CallbackQuery, callba
 
 @router.callback_query_handler(episode_cd.filter(action='refresh'))
 async def refresh_callback(query: CallbackQuery, callback_data: dict):
-    answer = asyncio.create_task(query.answer("refreshing"))
-
-    storage = Storage.get_current()
-    trakt = TraktClient.get_current()
     episode_id = callback_data['id']
 
-    creds = await storage.get_creds(query.from_user.id)
-    sess = trakt.auth(creds.access_token)
+    sess = await trakt_session(query.from_user.id)
     se = await sess.search_by_episode_id(episode_id, extended=True)
     watched = await sess.watched(se.episode.ids.trakt)
     keyboard_markup = await calendar_notification_markup(se, watched=watched)
+    if keyboard_markup.inline_keyboard[0][1].callback_data:  # has refresh callback
+        answer = "still no episode"
+    else:
+        answer = "episode is available"
     await asyncio.gather(
         query.message.edit_reply_markup(keyboard_markup),
-        answer,
+        query.answer(answer),
     )
