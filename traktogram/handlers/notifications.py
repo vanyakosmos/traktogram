@@ -86,8 +86,9 @@ async def calendar_notification_watch_handler(query: CallbackQuery, callback_dat
     # update keyboard
     markup = await calendar_notification_markup(se, watched=watched)
     await asyncio.gather(
-        query.message.edit_reply_markup(markup),
-        query.answer("marked as watched" if watched else "unwatched")
+        query.message.edit_text(query.message.html_text, reply_markup=markup,
+                                disable_web_page_preview=watched),
+        query.answer("marked as watched" if watched else "unwatched"),
     )
 
 

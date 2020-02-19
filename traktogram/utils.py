@@ -1,4 +1,3 @@
-import logging
 import math
 import os
 import re
@@ -18,7 +17,6 @@ from lxml import html
 from yarl import URL
 
 
-logger = logging.getLogger(__name__)
 digs = string.digits + string.ascii_letters
 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 episode_num = re.compile(r'ep (\d+)/\d+', re.I)
@@ -119,22 +117,18 @@ async def get_9anime_url(query: str, episode: int = None, **kwargs):
         from pathlib import Path
         Path('ep.html').write_bytes(text)
         items = root.xpath("(//div[@class='film-list']/div[@class='item'])")
-        logger.debug(f"found {len(items)} items")
         for item in items:
             el = item.xpath(".//div[@class='status']//div[@class='dub' or @class='special' or @class='movie']")
             if not el:
                 break
         else:
-            logger.debug("everything is dubbed/special/movie")
             return
         href = item.xpath('.//a')[0].get("href")
-        logger.debug(f"found url for {query!r} - {href}")
         if episode is not None:
             ep = item.xpath(".//div[@class='status']//div[@class='ep']")[0].text
             ep = int(episode_num.search(ep)[1])
             if ep >= episode:
                 return href
-            logger.debug(f"episodes doesn't match: {ep} < {episode}")
             return
         return href
 
