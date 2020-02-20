@@ -21,7 +21,7 @@ class TraktException(Exception):
 
 
 class Session:
-    def __init__(self, session: ClientSession, access_token=None):
+    def __init__(self, session: ClientSession, access_token):
         self.base = URL('https://api.trakt.tv')
         self.session = session
         self.access_token = access_token
@@ -199,9 +199,10 @@ class TraktSession(AuthMixin, HistoryMixin):
         return ShowEpisode.from_dict(data[0])
 
 
-class TraktClient(ContextInstanceMixin):
-    def __init__(self):
-        self.session = ClientSession()
+class TraktClient(TraktSession, ContextInstanceMixin):
+    def __init__(self, session: ClientSession = None, access_token: str = None):
+        session = session or ClientSession()
+        super().__init__(session, access_token)
 
     async def __aenter__(self):
         return self
@@ -213,4 +214,4 @@ class TraktClient(ContextInstanceMixin):
         await self.session.close()
 
     def auth(self, access_token=None) -> TraktSession:
-        return TraktSession(self.session, access_token)
+        return TraktClient(self.session, access_token)

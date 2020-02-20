@@ -19,8 +19,7 @@ async def process_auth_flow(message: Message):
     trakt = TraktClient.get_current()
     user_id = message.from_user.id
 
-    sess = trakt.auth()
-    flow = sess.device_auth_flow()
+    flow = trakt.device_auth_flow()
     data = await flow.__anext__()
     code = data['user_code']
     url = data['verification_url']
@@ -77,13 +76,15 @@ async def logout_handler(message: Message):
 
     creds = await storage.get_creds(user_id)
     if creds:
-        keys = await get_tasks_keys(queue, user_id)
         sess = trakt.auth(creds.access_token)
-        await asyncio.gather(
+        tasks = [
             sess.revoke_token(),
             storage.remove_creds(message.from_user.id),
             message.answer("Successfully logged out."),
-            queue.delete(*keys),
-        )
+        ]
+        keys = await get_tasks_keys(queue, user_id)
+        if keys:
+            tasks.append(*keys)
+        await asyncio.gather(*tasks)
     else:
         await message.answer("You are not logged in. Use /auth to authenticate.")
