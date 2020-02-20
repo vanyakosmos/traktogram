@@ -2,10 +2,13 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Type, TypeVar, List
 
-from related import ChildField, DateTimeField, IntegerField, StringField, immutable, mutable, to_dict, to_model
+from attr import attrib, Factory
+from related import ChildField, DateTimeField, IntegerField, StringField, immutable, mutable, to_dict, to_model, \
+    FloatField
 from yarl import URL
 
-from .utils import get_9anime_url, split_group
+from .utils import split_group
+from .anime import get_animedao_url
 
 
 ModelType = TypeVar('ModelType')
@@ -41,11 +44,25 @@ class Show(Model):
     language = StringField(required=False)
 
     @property
+    def id(self):
+        return self.ids.trakt
+
+    @property
     def url(self):
         return URL('https://trakt.tv/shows') / self.ids.slug
 
 
-@mutable()
+@immutable
+class Season(Model):
+    ids = ChildField(IDs)
+    title = StringField()
+    number = IntegerField()
+    aired_episodes = IntegerField()
+    episode_count = IntegerField()
+    rating = FloatField()
+
+
+@mutable
 class Episode(Model):
     ids = ChildField(IDs)
     title = StringField()
@@ -53,6 +70,13 @@ class Episode(Model):
     number = IntegerField()
     number_abs = IntegerField(required=False)
     show = ChildField(Show, required=False)
+    season_name = attrib(default=Factory(
+        lambda self: f"Season {self.season}",
+        takes_self=True))
+
+    @property
+    def id(self):
+        return self.ids.trakt
 
     @property
     def season_url(self):
@@ -69,8 +93,12 @@ class Episode(Model):
         if self.show is None:
             return None, None
         if self.show.language == 'ja':
-            url = await get_9anime_url(f"{self.show.title} {self.season}")
-            return '9anime', url
+            url = await get_animedao_url(
+                show_name=self.show.title,
+                season=self.season, season_name=self.season_name,
+                episode=self.number, episode_abs=self.number_abs,
+            )
+            return 'animedao', url
         return None, None
 
 

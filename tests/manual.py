@@ -1,19 +1,20 @@
-import asyncio
-import logging.config
 import os
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from pprint import pprint
 
-from arq import create_pool, Worker
+from arq import Worker, create_pool
 
 from traktogram.worker import *
 
 
+REDIS_SETTINGS = get_redis_settings(database=1)
+
+
 @asynccontextmanager
 async def ctx_manager():
-    ctx = {'redis': await create_pool(get_redis_settings())}
+    ctx = {'redis': await create_pool(REDIS_SETTINGS)}
     await on_startup(ctx)
     try:
         yield Context(**ctx)
@@ -46,7 +47,7 @@ async def schedule_multi(*, queue, user_id, first, group, **kwargs):
 
 
 async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id, multi=False, delay=1):
-    episodes = await sess.calendar_shows(extended=True, start_date='2020-01-30', days=2)
+    episodes = await sess.calendar_shows(extended=True, start_date='2020-02-22', days=2)
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:
         e.first_aired = first_aired
@@ -82,7 +83,7 @@ async def test_calendar(delay, **kwargs):
             burst=True,
             on_startup=on_startup,
             on_shutdown=on_shutdown,
-            redis_settings=get_redis_settings(),
+            redis_settings=REDIS_SETTINGS,
         )
         await worker.async_run()
 
@@ -115,7 +116,7 @@ async def test_same_time_schedule():
             burst=True,
             on_startup=on_startup,
             on_shutdown=on_shutdown,
-            redis_settings=get_redis_settings(),
+            redis_settings=REDIS_SETTINGS,
         )
         await worker.async_run()
 
@@ -129,7 +130,7 @@ async def test_remove():
             (test_task,),
             keep_result=0,
             burst=True,
-            redis_settings=get_redis_settings(),
+            redis_settings=REDIS_SETTINGS,
         )
         await worker.async_run()
 

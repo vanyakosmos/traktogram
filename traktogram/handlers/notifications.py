@@ -5,10 +5,7 @@ from contextlib import asynccontextmanager
 from aiogram.types import CallbackQuery
 
 from traktogram.handlers.utils import trakt_session
-from traktogram.markup import (
-    calendar_multi_notification_markup, calendar_notification_markup, decode_ids, episode_cd,
-    episodes_cd
-)
+from traktogram.markup import calendar_multi_notification_markup, decode_ids, episode_cd, episodes_cd, get_watch_button
 from traktogram.router import Router
 from traktogram.trakt import TraktSession
 
@@ -84,7 +81,8 @@ async def calendar_notification_watch_handler(query: CallbackQuery, callback_dat
     se = await sess.search_by_episode_id(episode_id, extended=True)
     logger.debug(se)
     # update keyboard
-    markup = await calendar_notification_markup(se, watched=watched)
+    markup = query.message.reply_markup
+    markup.inline_keyboard[0][0] = get_watch_button(se, watched)
     await asyncio.gather(
         query.message.edit_text(query.message.html_text, reply_markup=markup,
                                 disable_web_page_preview=watched),
@@ -127,21 +125,3 @@ async def calendar_multi_notification_watch_handler(query: CallbackQuery, callba
             h.watched = False
     answer = f"marked as watched" if watched_current else "unwatched"
     await h.update_message(answer)
-
-
-@router.callback_query_handler(episode_cd.filter(action='refresh'))
-async def refresh_callback(query: CallbackQuery, callback_data: dict):
-    episode_id = callback_data['id']
-
-    sess = await trakt_session(query.from_user.id)
-    se = await sess.search_by_episode_id(episode_id, extended=True)
-    watched = await sess.watched(se.episode.ids.trakt)
-    keyboard_markup = await calendar_notification_markup(se, watched=watched)
-    if keyboard_markup.inline_keyboard[0][1].callback_data:  # has refresh callback
-        answer = "still no episode"
-    else:
-        answer = "episode is available"
-    await asyncio.gather(
-        query.message.edit_reply_markup(keyboard_markup),
-        query.answer(answer),
-    )

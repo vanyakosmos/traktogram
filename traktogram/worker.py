@@ -1,3 +1,4 @@
+import asyncio
 import contextvars
 import logging
 from functools import wraps
@@ -68,9 +69,13 @@ async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEp
     )
     creds = await ctx.storage.get_creds(user_id)
     sess = ctx.trakt.auth(creds.access_token)
-    watched = await sess.watched(ce.episode.ids.trakt)
+    watched, season = await asyncio.gather(
+        sess.watched(ce.episode.ids.trakt),
+        sess.season_summary(ce.show.id, ce.episode.season, extended=True)
+    )
+    ce.episode.season_name = season.title  # required for proper "watch url" generation
     keyboard_markup = await calendar_notification_markup(ce, watched=watched)
-    await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
+    await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup, disable_web_page_preview=watched)
 
 
 @with_context
@@ -148,12 +153,12 @@ async def on_shutdown(ctx: dict):
     await ctx['bot'].close()
 
 
-def get_redis_settings():
+def get_redis_settings(**kwargs):
     rs = parse_redis_uri(REDIS_URL)
     if 'db' in rs:
         rs['database'] = rs['db']
         del rs['db']
-    return RedisSettings(**rs)
+    return RedisSettings(**{**rs, **kwargs})
 
 
 async def get_tasks_keys(queue: ArqRedis, user_id):

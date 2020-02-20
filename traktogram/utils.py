@@ -9,12 +9,9 @@ from logging import LogRecord
 from types import FunctionType
 from typing import Callable, List, Union
 
-import aiohttp
 import aioredis.util
 import colorlog
 from aiogram.utils.callback_data import CallbackDataFilter
-from lxml import html
-from yarl import URL
 
 
 digs = string.digits + string.ascii_letters
@@ -92,45 +89,6 @@ def make_calendar_notification_task_id(func: Union[str, Callable], user_id, show
         episodes_ids = '|'.join(map(str, episodes_ids))
         id = f'{id}-{episodes_ids}'
     return id
-
-
-async def get_9anime_url(query: str, episode: int = None, **kwargs):
-    """
-    Scrap anime url from 9anime.to.
-    If `episode` parameter is specified then url will be returned only if number
-    of aired episode is greater or equal to `episode` param.
-    """
-    async with aiohttp.ClientSession(trust_env=True, **kwargs) as s:
-        url = URL('https://9anime.to/filter')
-        url = url.update_query([
-            # on 9anime only keyword filter works properly...
-            ('keyword', query),
-        ])
-        r = await s.get(url, headers={
-            'user-agent': os.getenv('FAKE_USER_AGENT', ''),
-            'Cookie': os.getenv('FAKE_COOKIES', ''),
-            'Upgrade-Insecure-Requests': '1',
-        })
-
-        text = await r.read()
-        root = html.fromstring(text)
-        from pathlib import Path
-        Path('ep.html').write_bytes(text)
-        items = root.xpath("(//div[@class='film-list']/div[@class='item'])")
-        for item in items:
-            el = item.xpath(".//div[@class='status']//div[@class='dub' or @class='special' or @class='movie']")
-            if not el:
-                break
-        else:
-            return
-        href = item.xpath('.//a')[0].get("href")
-        if episode is not None:
-            ep = item.xpath(".//div[@class='status']//div[@class='ep']")[0].text
-            ep = int(episode_num.search(ep)[1])
-            if ep >= episode:
-                return href
-            return
-        return href
 
 
 @singledispatch

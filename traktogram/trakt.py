@@ -9,7 +9,7 @@ from aiohttp import ClientSession
 from yarl import URL
 
 from .config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
-from .models import CalendarEpisode, Episode, ShowEpisode
+from .models import CalendarEpisode, Episode, ShowEpisode, Season
 
 
 logger = logging.getLogger(__name__)
@@ -171,6 +171,16 @@ class TraktSession(AuthMixin, HistoryMixin):
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
         return Episode.from_dict(data)
+
+    async def season_summary(self, show_id: str, season: int, extended=False):
+        url = self.base / f'shows/{show_id}/seasons'
+        if extended:
+            url = url.update_query(extended='full')
+        r = await self.session.get(url, headers=self.headers)
+        seasons = await r.json()
+        for s in seasons:
+            if s['number'] == season:
+                return Season.from_dict(s)
 
     async def search_by_id(self, provider, id, type=None, extended=False):
         url = self.base / f'search/{provider}/{id}'

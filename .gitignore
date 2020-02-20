@@ -132,3 +132,4 @@ dump.rdb
 .envs/*
 !.envs/example.env
 docker-compose.override.yml
+playground*
