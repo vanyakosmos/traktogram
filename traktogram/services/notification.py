@@ -83,12 +83,10 @@ class CalendarNotification:
 
         kb = InlineKeyboardMarkup(inline_keyboard=[[watch_btn]])
         if not watched:
-            urls_row = [
+            kb.add(*[
                 IKB(source, url=str(url))
                 async for source, url in watch_urls(se.show)
-            ]
-            if urls_row:
-                kb.add(*urls_row)
+            ])
         return kb
 
     async def send(self, bot: Bot, trakt: TraktClient, storage: Storage, user_id, ce: CalendarEpisode):

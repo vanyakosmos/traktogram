@@ -3,5 +3,6 @@ from .notification import (
     CalendarMultiNotification, CalendarMultiNotificationFlow, CalendarNotification,
     NotificationSchedulerService,
 )
-from .ops import watch_urls, trakt_session
+from .ops import trakt_session, watch_urls
+from .torrent import NyaaSiService, PirateBayService
 from .trakt import TraktClient, TraktException
