@@ -9,11 +9,10 @@ from aiogram import Bot
 from arq import cron
 from arq.connections import ArqRedis, RedisSettings
 from arq.constants import job_key_prefix
-from attr import attrib
-from related import immutable, to_model
+from pydantic import BaseModel
 
 from traktogram import rendering
-from traktogram.config import REDIS_URL, BOT_TOKEN
+from traktogram.config import BOT_TOKEN, REDIS_URL
 from traktogram.logging_setup import setup_logging
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
@@ -26,27 +25,20 @@ logger = logging.getLogger(__name__)
 worker_queue_var = contextvars.ContextVar('worker_queue_var')
 
 
-@immutable
-class Context:
-    redis = attrib(type=ArqRedis)
-    trakt = attrib(type=TraktClient)
-    storage = attrib(type=Storage)
-    bot = attrib(type=Bot)
+class Context(BaseModel):
+    redis: ArqRedis
+    trakt: TraktClient
+    storage: Storage
+    bot: Bot
 
-    def keys(self):
-        return [a.name for a in self.__attrs_attrs__]
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
-
-    def __getitem__(self, item):
-        return getattr(self, item)
+    class Config:
+        arbitrary_types_allowed = True
 
 
 def with_context(f):
     @wraps(f)
     async def dec(ctx: dict, *args, **kwargs):
-        ctx = to_model(Context, ctx)
+        ctx = Context(**ctx)
         return await f(ctx, *args, **kwargs)
 
     return dec
@@ -64,16 +56,11 @@ def without_context(f):
 async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEpisode):
     text = rendering.render_html(
         'calendar_notification',
-        show=ce.show,
-        episode=ce.episode,
+        show_episode=ce,
     )
     creds = await ctx.storage.get_creds(user_id)
     sess = ctx.trakt.auth(creds.access_token)
-    watched, season = await asyncio.gather(
-        sess.watched(ce.episode.ids.trakt),
-        sess.season_summary(ce.show.id, ce.episode.season, extended=True)
-    )
-    ce.episode.season_name = season.title  # required for proper "watch url" generation
+    watched = await sess.watched(ce.episode.id)
     keyboard_markup = await calendar_notification_markup(ce, watched=watched)
     await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup, disable_web_page_preview=watched)
 
@@ -81,16 +68,15 @@ async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEp
 @with_context
 async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes: List[CalendarEpisode]):
     first = episodes[0]
-    show = first.show
     text = rendering.render_html(
         'calendar_multi_notification',
-        show=show,
-        episodes=[cs.episode for cs in episodes],
+        show=first.show,
+        episodes=episodes,
     )
     creds = await ctx.storage.get_creds(user_id)
     sess = ctx.trakt.auth(creds.access_token)
-    watched = await sess.watched(first.episode.ids.trakt)
-    episodes_ids = [cs.episode.ids.trakt for cs in episodes]
+    watched = await sess.watched(first.episode.id)
+    episodes_ids = [cs.episode.id for cs in episodes]
     keyboard_markup = calendar_multi_notification_markup(first, episodes_ids, watched)
     await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
 

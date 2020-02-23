@@ -7,11 +7,10 @@ from types import FunctionType
 from typing import Optional
 
 import aioredis
-import related
 from aiogram.contrib.fsm_storage.redis import RedisStorage2
 from aiogram.utils.mixins import ContextInstanceMixin
+from pydantic import BaseModel
 
-from traktogram.models import Model
 from traktogram.utils import parse_redis_uri
 
 
@@ -21,10 +20,9 @@ CACHE_KEY = 'cache'
 logger = logging.getLogger(__name__)
 
 
-@related.immutable
-class Creds(Model):
-    access_token = related.StringField()
-    refresh_token = related.StringField()
+class Creds(BaseModel):
+    access_token: str
+    refresh_token: str
 
 
 class HelpersMixin:
@@ -57,7 +55,7 @@ class CredsMixin(HelpersMixin):
         data = await conn.hget(key, user_id)
         if data:
             data = json.loads(data.decode())
-            return Creds.from_dict(data)
+            return Creds(**data)
 
     async def remove_creds(self, user_id):
         conn, key = await self.creds_conn_key
@@ -69,7 +67,7 @@ class CredsMixin(HelpersMixin):
             data = json.loads(tokens.decode())
             yield (
                 user_id.decode(),
-                Creds.from_dict(data),
+                Creds(**data),
             )
 
 

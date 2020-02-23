@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from traktogram.anime import get_animedao_url
+from traktogram.services.anime import AnimeDaoService
 
 
 @pytest.mark.parametrize("show_name, season_name, season, episode, episode_abs, animedao_url", [
@@ -21,5 +21,7 @@ from traktogram.anime import get_animedao_url
 ])
 @pytest.mark.slow
 async def test_get_animedao_url(show_name, season_name, season, episode, episode_abs, animedao_url, loop):
-    url = await get_animedao_url(show_name, season_name=season_name, season=season, episode=episode, episode_abs=episode_abs, loop=loop)
-    assert url == animedao_url
+    async with AnimeDaoService() as ad:
+        url = await ad.episode_url(show_name, season_name=season_name, season=season, episode=episode,
+                                   episode_abs=episode_abs)
+        assert url == animedao_url

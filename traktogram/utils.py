@@ -1,36 +1,20 @@
 import math
-import os
 import re
 import string
 import textwrap
 from datetime import datetime
 from functools import singledispatch
-from logging import LogRecord
 from types import FunctionType
-from typing import Callable, List, Union
+from typing import Callable, List, Union, Coroutine
 
+import aiohttp
 import aioredis.util
-import colorlog
 from aiogram.utils.callback_data import CallbackDataFilter
 
 
 digs = string.digits + string.ascii_letters
 ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 episode_num = re.compile(r'ep (\d+)/\d+', re.I)
-
-
-class LogFormatter(colorlog.ColoredFormatter):
-    def format(self, record: LogRecord):
-        text = record.getMessage()
-        record.msg = ''
-        record.args = ()
-        prefix = super(LogFormatter, self).format(record)
-        plain_prefix = ansi_escape.sub('', prefix)
-        lines = text.splitlines()
-        res = [f"{prefix}{lines[0]}"]
-        for line in lines[1:]:
-            res.append(' ' * len(plain_prefix) + line)
-        return '\n'.join(res)
 
 
 def dedent(text: str):
@@ -113,3 +97,17 @@ def parse_redis_uri(uri):
         'port': port,
         **options,
     }
+
+
+class Session:
+    def __init__(self, session: aiohttp.ClientSession = None):
+        self.session = session or aiohttp.ClientSession()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    def close(self) -> Coroutine:
+        return self.session.close()

@@ -37,7 +37,7 @@ class TestRender:
 
 class TestMessages:
     def test_new_episode(self):
-        se = ShowEpisode.from_dict({
+        se = ShowEpisode(**{
             'show': {
                 'title': 'show',
                 'year': 2020,
@@ -52,8 +52,7 @@ class TestMessages:
         })
         text = render_html(
             'calendar_notification',
-            show=se.show,
-            episode=se.episode,
+            show_episode=se,
         )
         assert text == dedent("""
             <b>show</b> 1x1 <a href="https://trakt.tv/shows/slug/seasons/1/episodes/1">"episode"</a>
@@ -61,7 +60,7 @@ class TestMessages:
         """)
 
     def test_new_episodes(self):
-        se = ShowEpisode.from_dict({
+        se = ShowEpisode(**{
             'show': {
                 'title': 'show',
                 'year': 2020,
@@ -77,7 +76,7 @@ class TestMessages:
         text = render_html(
             'calendar_multi_notification',
             show=se.show,
-            episodes=[se.episode, se.episode],
+            episodes=[se, se],
         )
         assert text == dedent("""
             <b>show</b>

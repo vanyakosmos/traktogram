@@ -17,7 +17,7 @@ async def ctx_manager():
     ctx = {'redis': await create_pool(REDIS_SETTINGS)}
     await on_startup(ctx)
     try:
-        yield Context(**ctx)
+        yield ctx
     finally:
         await on_shutdown(ctx)
         ctx['redis'].close()
@@ -47,7 +47,7 @@ async def schedule_multi(*, queue, user_id, first, group, **kwargs):
 
 
 async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id, multi=False, delay=1):
-    episodes = await sess.calendar_shows(extended=True, start_date='2020-02-22', days=2)
+    episodes = await sess.calendar_shows(extended=True, start_date='2020-02-25', days=2)
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:
         e.first_aired = first_aired
@@ -90,8 +90,9 @@ async def test_calendar(delay, **kwargs):
 
 async def test_refresh_token(user_id):
     async with ctx_manager() as ctx:
+        ctx = Context(**ctx)
         creds = await ctx.storage.get_creds(user_id)
-        pprint(creds.to_dict())
+        pprint(dict(creds))
         sess = ctx.trakt.auth(creds.access_token)
         tokens = await sess.refresh_token(creds.refresh_token)
         pprint(tokens)
@@ -139,7 +140,7 @@ async def main():
     parser = ArgumentParser()
     parser.add_argument('--all', '-a', action='store_true')
     sub = parser.add_subparsers(dest='sub')
-    p_cal = sub.add_parser('calendar', aliases=('cal',))
+    p_cal = sub.add_parser('cal')
     p_cal.add_argument('--multi', '-m', action='store_true')
     p_cal.add_argument('--delay', '-d', type=int, default=1)
     p_ref = sub.add_parser('refresh')
@@ -147,7 +148,7 @@ async def main():
     sub.add_parser('same')
     sub.add_parser('remove')
     args = parser.parse_args()
-    if args.sub in ('cal', 'calendar'):
+    if args.sub == 'cal':
         await test_calendar(multi=args.multi, delay=args.delay)
     elif args.sub == 'refresh':
         await test_refresh_token(args.user_id)

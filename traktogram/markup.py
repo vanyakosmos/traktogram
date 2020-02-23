@@ -4,6 +4,7 @@ from aiogram.types import InlineKeyboardButton as IKB, InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 
 from .models import ShowEpisode
+from .services import watch_urls
 from .utils import compress_int, decompress_int
 
 
@@ -31,15 +32,14 @@ def get_watch_button(se: ShowEpisode, watched: bool):
 
 
 async def calendar_notification_markup(se: ShowEpisode, watched: bool):
-    row = [get_watch_button(se, watched)]
-    source, urls = await se.episode.watch_url
-    if source:
-        if not isinstance(urls, tuple):
-            urls = (urls,)
-        for url in urls:
-            btn = IKB(f'watch on {source}', url=url)
-            row.append(btn)
-    return InlineKeyboardMarkup(inline_keyboard=[row])
+    kb = [[get_watch_button(se, watched)]]
+    urls_row = [
+        IKB(source, url=str(url))
+        async for source, url in watch_urls(se.show)
+    ]
+    if urls_row:
+        kb.append(urls_row)
+    return InlineKeyboardMarkup(inline_keyboard=kb)
 
 
 def calendar_multi_notification_markup(se: ShowEpisode, episodes: List[int], watched: bool, index=0):

@@ -39,7 +39,7 @@ async def store():
 @pytest.fixture('class')
 def make_calendar_episode(request):
     def make(first_aired, show_id, episode_number=1):
-        return CalendarEpisode.from_dict({
+        return CalendarEpisode(**{
             'show': {
                 'ids': {'trakt': show_id, 'slug': 'slug'},
                 'title': 'show',

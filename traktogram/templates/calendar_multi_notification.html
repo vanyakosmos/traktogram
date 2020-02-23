@@ -1,6 +1,8 @@
 <b>{{ show.title }}</b>
 <br/><br/>
-{% for episode in episodes %}
+{% for show_episode in episodes %}
+  {% set show = show_episode.show %}
+  {% set episode = show_episode.episode %}
   {% include 'episode_title.html' %}
   <br/>
 {% endfor %}

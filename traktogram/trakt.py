@@ -123,7 +123,7 @@ class HistoryMixin(Session):
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
-        return [ShowEpisode.from_dict(e) for e in data]
+        return [ShowEpisode(**e) for e in data]
 
     async def add_to_history(self, episode_id) -> ShowEpisode:
         url = self.base / 'sync/history'
@@ -162,7 +162,7 @@ class TraktSession(AuthMixin, HistoryMixin):
         data = await r.json()
         if r.status != 200:
             raise TraktException(data)
-        return [CalendarEpisode.from_dict(e) for e in data]
+        return [CalendarEpisode(**e) for e in data]
 
     async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
         url = self.base / f'shows/{show_id}/seasons/{season}/episodes/{episode}'
@@ -170,7 +170,7 @@ class TraktSession(AuthMixin, HistoryMixin):
             url = url.update_query(extended='full')
         r = await self.session.get(url, headers=self.headers)
         data = await r.json()
-        return Episode.from_dict(data)
+        return Episode(**data)
 
     async def season_summary(self, show_id: str, season: int, extended=False):
         url = self.base / f'shows/{show_id}/seasons'
@@ -180,7 +180,7 @@ class TraktSession(AuthMixin, HistoryMixin):
         seasons = await r.json()
         for s in seasons:
             if s['number'] == season:
-                return Season.from_dict(s)
+                return Season(**s)
 
     async def search_by_id(self, provider, id, type=None, extended=False):
         url = self.base / f'search/{provider}/{id}'
@@ -196,7 +196,7 @@ class TraktSession(AuthMixin, HistoryMixin):
         data = await self.search_by_id('trakt', episode_id, type='episode', extended=extended)
         if not data:
             return
-        return ShowEpisode.from_dict(data[0])
+        return ShowEpisode(**data[0])
 
 
 class TraktClient(TraktSession, ContextInstanceMixin):

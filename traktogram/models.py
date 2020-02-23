@@ -1,47 +1,26 @@
 from collections import defaultdict
-from datetime import timedelta
-from typing import Type, TypeVar, List
+from datetime import datetime, timedelta
+from typing import List
 
-from attr import attrib, Factory
-from related import ChildField, DateTimeField, IntegerField, StringField, immutable, mutable, to_dict, to_model, \
-    FloatField
+from pydantic import BaseModel
 from yarl import URL
 
 from .utils import split_group
-from .anime import get_animedao_url
 
 
-ModelType = TypeVar('ModelType')
+class IDs(BaseModel):
+    trakt: int
 
 
-class Model:
-    @classmethod
-    def from_dict(cls: Type[ModelType], data: dict = None, **kwargs) -> ModelType:
-        """Factory that allows to pass extra kwargs without errors."""
-        data = data.copy() if data else {}
-        data.update(kwargs)
-        return to_model(cls, data)
-
-    def to_dict(self, **kwargs) -> dict:
-        return to_dict(self, **kwargs)
-
-
-@immutable
-class IDs(Model):
-    trakt = IntegerField()
-
-
-@immutable
 class ShowIDs(IDs):
-    slug = StringField()
+    slug: str
 
 
-@immutable
-class Show(Model):
-    ids = ChildField(ShowIDs)
-    title = StringField()
-    year = IntegerField()
-    language = StringField(required=False)
+class Show(BaseModel):
+    ids: ShowIDs
+    title: str
+    year: int
+    language: str = None
 
     @property
     def id(self):
@@ -52,71 +31,46 @@ class Show(Model):
         return URL('https://trakt.tv/shows') / self.ids.slug
 
 
-@immutable
-class Season(Model):
-    ids = ChildField(IDs)
-    title = StringField()
-    number = IntegerField()
-    aired_episodes = IntegerField()
-    episode_count = IntegerField()
-    rating = FloatField()
-
-
-@mutable
-class Episode(Model):
-    ids = ChildField(IDs)
-    title = StringField()
-    season = IntegerField()
-    number = IntegerField()
-    number_abs = IntegerField(required=False)
-    show = ChildField(Show, required=False)
-    season_name = attrib(default=Factory(
-        lambda self: f"Season {self.season}",
-        takes_self=True))
+class Season(BaseModel):
+    ids: IDs
+    title: str
+    number: int
+    aired_episodes: int
+    episode_count: int
+    rating: float
 
     @property
     def id(self):
         return self.ids.trakt
 
+
+class Episode(BaseModel):
+    ids: IDs
+    title: str
+    season: int
+    number: int
+    number_abs: int = None
+
     @property
-    def season_url(self):
-        if self.show:
-            return self.show.url / 'seasons' / str(self.season)
+    def id(self):
+        return self.ids.trakt
+
+    def url(self, show: Show):
+        return show.url / f'seasons/{self.season}/episodes/{self.number}'
+
+
+class ShowEpisode(BaseModel):
+    show: Show
+    episode: Episode
 
     @property
     def url(self):
-        if self.show:
-            return self.season_url / 'episodes' / str(self.number)
-
-    @property
-    async def watch_url(self):
-        if self.show is None:
-            return None, None
-        if self.show.language == 'ja':
-            url = await get_animedao_url(
-                show_name=self.show.title,
-                season=self.season, season_name=self.season_name,
-                episode=self.number, episode_abs=self.number_abs,
-            )
-            return 'animedao', url
-        return None, None
+        season_url = self.show.url / f'seasons/{self.episode.season}'
+        return season_url / f'episodes/{self.episode.number}'
 
 
-@mutable
-class ShowEpisode(Model):
-    show = ChildField(Show)
-    episode = ChildField(Episode)
-
-    @classmethod
-    def from_dict(cls: Type[ModelType], data: dict = None, **kwargs) -> ModelType:
-        se = super(ShowEpisode, cls).from_dict(data, **kwargs)
-        se.episode.show = se.show
-        return se
-
-
-@mutable
 class CalendarEpisode(ShowEpisode):
-    first_aired = DateTimeField()
+    first_aired: datetime
 
     @classmethod
     def group_by_show(cls, episodes: List['CalendarEpisode'], max_num=8) -> List[List['CalendarEpisode']]:
@@ -131,7 +85,7 @@ class CalendarEpisode(ShowEpisode):
         """
         groups = defaultdict(list)
         for e in episodes:
-            key = (e.show.ids.trakt, e.first_aired)
+            key = (e.show.id, e.first_aired)
             groups[key].append(e)
         res = []
         for group in groups.values():

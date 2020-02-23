@@ -1,18 +1,17 @@
 from datetime import timedelta
 
 import pytest
-from related import to_model
 
-from traktogram.models import CalendarEpisode, Episode, IDs, Show
+from traktogram.models import CalendarEpisode, IDs, Show
 
 
 class TestSerialization:
     def test_simple(self):
-        ids = IDs.from_dict({'trakt': 1})
+        ids = IDs(**{'trakt': 1})
         assert ids.trakt == 1
 
     def test_partial(self):
-        show = Show.from_dict({
+        show = Show(**{
             'ids': {'trakt': 1, 'slug': 'slug'},
             'title': 'title',
             'year': 2020
@@ -21,7 +20,7 @@ class TestSerialization:
         assert show.language is None
 
     def test_overflow(self):
-        ids: IDs = to_model(IDs, {
+        ids: IDs = IDs(**{
             'trakt': 1,
             'slug': 'fds',
             'tmdb': 1
@@ -31,7 +30,7 @@ class TestSerialization:
         assert not hasattr(ids, 'tmdb')
 
     def test_nested(self):
-        show = Show.from_dict({
+        show = Show(**{
             'ids': {
                 'trakt': 1,
                 'slug': 'slug',
@@ -41,29 +40,6 @@ class TestSerialization:
         })
         assert show.title == 'title'
         assert show.ids.trakt == 1
-
-
-def test_properties():
-    e = Episode.from_dict({
-        'ids': {'trakt': 1},
-        'title': 'episode',
-        'season': 1,
-        'number': 1,
-    })
-    assert e.url is None
-
-    e = Episode.from_dict({
-        'ids': {'trakt': 1},
-        'title': 'episode',
-        'season': 1,
-        'number': 1,
-        'show': {
-            'ids': {'trakt': 1, 'slug': 'show'},
-            'title': 'show',
-            'year': 2020,
-        }
-    })
-    assert str(e.url) == 'https://trakt.tv/shows/show/seasons/1/episodes/1'
 
 
 @pytest.mark.usefixtures('make_calendar_episode')
