@@ -26,7 +26,7 @@ async def ctx_manager():
 
 async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
     return await queue.enqueue_job('send_calendar_notifications', user_id, first,
-                                   _job_id=make_calendar_notification_task_id(
+                                   _job_id=NotificationSchedulerService.make_job_id(
                                        send_calendar_notifications,
                                        user_id,
                                        first.show.ids.trakt,
@@ -37,7 +37,7 @@ async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
 
 async def schedule_multi(*, queue, user_id, first, group, **kwargs):
     return await queue.enqueue_job('send_calendar_multi_notifications', user_id, group,
-                                   _job_id=make_calendar_notification_task_id(
+                                   _job_id=NotificationSchedulerService.make_job_id(
                                        send_calendar_notifications,
                                        user_id,
                                        first.show.ids.trakt,

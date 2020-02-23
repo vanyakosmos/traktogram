@@ -10,14 +10,15 @@ from arq.connections import ArqRedis, RedisSettings
 from arq.constants import job_key_prefix
 from pydantic import BaseModel
 
-from traktogram import rendering
 from traktogram.config import BOT_TOKEN, REDIS_URL
 from traktogram.logging_setup import setup_logging
-from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
+from traktogram.services import (
+    CalendarMultiNotification, CalendarNotification, NotificationSchedulerService,
+    TraktClient
+)
 from traktogram.storage import Storage
-from traktogram.services import TraktClient
-from traktogram.utils import make_calendar_notification_task_id, parse_redis_uri
+from traktogram.utils import parse_redis_uri
 
 
 logger = logging.getLogger(__name__)
@@ -53,68 +54,22 @@ def without_context(f):
 
 @with_context
 async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEpisode):
-    text = rendering.render_html(
-        'calendar_notification',
-        show_episode=ce,
-    )
-    creds = await ctx.storage.get_creds(user_id)
-    sess = ctx.trakt.auth(creds.access_token)
-    watched = await sess.watched(ce.episode.id)
-    keyboard_markup = await calendar_notification_markup(ce, watched=watched)
-    await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup, disable_web_page_preview=watched)
+    service = CalendarNotification()
+    await service.send(ctx.bot, ctx.trakt, ctx.storage, user_id, ce)
 
 
 @with_context
 async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes: List[CalendarEpisode]):
-    first = episodes[0]
-    text = rendering.render_html(
-        'calendar_multi_notification',
-        show=first.show,
-        episodes=episodes,
-    )
-    creds = await ctx.storage.get_creds(user_id)
-    sess = ctx.trakt.auth(creds.access_token)
-    watched = await sess.watched(first.episode.id)
-    episodes_ids = [cs.episode.id for cs in episodes]
-    keyboard_markup = calendar_multi_notification_markup(first, episodes_ids, watched)
-    await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
-
-
-async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id,
-                                         episodes=None, start_date=None, days=7):
-    if episodes is None:
-        episodes = await sess.calendar_shows(start_date, days, extended=True)
-    logger.debug(f"fetched {len(episodes)} episodes")
-    groups = CalendarEpisode.group_by_show(episodes)
-    for group in groups:
-        first = group[0]
-        if len(group) == 1:
-            await queue.enqueue_job('send_calendar_notifications', user_id, first,
-                                    _job_id=make_calendar_notification_task_id(
-                                        send_calendar_notifications,
-                                        user_id,
-                                        first.show.ids.trakt,
-                                        first.first_aired,
-                                    ),
-                                    _defer_until=first.first_aired)
-        else:
-            await queue.enqueue_job('send_calendar_multi_notifications', user_id, group,
-                                    _job_id=make_calendar_notification_task_id(
-                                        send_calendar_notifications,
-                                        user_id,
-                                        first.show.ids.trakt,
-                                        first.first_aired,
-                                        *(e.episode.ids.trakt for e in group)
-                                    ),
-                                    _defer_until=first.first_aired)
-    logger.debug(f"scheduled {len(groups)} notifications")
+    service = CalendarMultiNotification()
+    await service.send(ctx.bot, ctx.trakt, ctx.storage, user_id, episodes)
 
 
 @with_context
 async def schedule_calendar_notifications(ctx: Context):
+    service = NotificationSchedulerService(ctx.redis)
     async for user_id, creds in ctx.storage.creds_iter():
         sess = ctx.trakt.auth(creds.access_token)
-        await schedule_calendar_notification(sess, ctx.redis, user_id)
+        await service.schedule(sess, user_id)
 
 
 @with_context
@@ -126,6 +81,8 @@ async def schedule_tokens_refresh(ctx: Context):
 
 
 async def on_startup(ctx: dict):
+    NotificationSchedulerService.send_single_task_name = send_calendar_notifications.__name__
+    NotificationSchedulerService.send_multi_task_name = send_calendar_multi_notifications.__name__
     ctx['trakt'] = TraktClient()
     ctx['storage'] = Storage(REDIS_URL)
     ctx['bot'] = Bot(BOT_TOKEN, parse_mode='html')

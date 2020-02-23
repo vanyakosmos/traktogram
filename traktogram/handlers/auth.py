@@ -5,9 +5,10 @@ from aiogram.types import Message
 
 from traktogram.rendering import render_html
 from traktogram.router import Router
+from traktogram.services.notification import NotificationSchedulerService
 from traktogram.storage import Storage
 from traktogram.services import TraktClient
-from traktogram.worker import schedule_calendar_notification, get_tasks_keys, worker_queue_var
+from traktogram.worker import get_tasks_keys, worker_queue_var
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,8 @@ async def auth_handler(message: Message):
     try:
         if access_token := await process_auth_flow(message):
             sess = trakt.auth(access_token)
-            await schedule_calendar_notification(sess, queue, user_id)
+            service = NotificationSchedulerService(queue)
+            await service.schedule(sess, user_id)
     finally:
         await storage.finish(user=user_id)
 

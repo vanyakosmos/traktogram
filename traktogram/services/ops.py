@@ -1,5 +1,7 @@
 from .anime import AnimeDaoService, MALService, NineAnimeService
+from .trakt import TraktClient
 from ..models import Show
+from ..storage import Storage
 
 
 async def watch_urls(show: Show):
@@ -8,3 +10,11 @@ async def watch_urls(show: Show):
             query = await mal.get_title(show.title)
             yield 'animedao', AnimeDaoService.search_url(query)
             yield '9anime', NineAnimeService.search_url(query)
+
+
+async def trakt_session(user_id):
+    storage = Storage.get_current()
+    trakt = TraktClient.get_current()
+    creds = await storage.get_creds(user_id)
+    sess = trakt.auth(creds.access_token)
+    return sess
