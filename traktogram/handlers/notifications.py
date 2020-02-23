@@ -7,14 +7,14 @@ from aiogram.types import CallbackQuery
 from traktogram.handlers.utils import trakt_session
 from traktogram.markup import calendar_multi_notification_markup, decode_ids, episode_cd, episodes_cd, get_watch_button
 from traktogram.router import Router
-from traktogram.trakt import TraktSession
+from traktogram.services import TraktClient
 
 
 logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def toggle_watched_status(sess: TraktSession, episode_id, watched: bool):
+async def toggle_watched_status(sess: TraktClient, episode_id, watched: bool):
     logger.debug(f"watched {watched}")
     if watched:
         await sess.remove_from_history(episode_id)

@@ -5,7 +5,7 @@ from lxml import html
 from slugify import slugify
 from yarl import URL
 
-from traktogram.utils import Session
+from .session import Session
 
 
 white_space_re = re.compile(r'[\n\s]+')

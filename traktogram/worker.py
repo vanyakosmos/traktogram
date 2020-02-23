@@ -1,4 +1,3 @@
-import asyncio
 import contextvars
 import logging
 from functools import wraps
@@ -17,7 +16,7 @@ from traktogram.logging_setup import setup_logging
 from traktogram.markup import calendar_multi_notification_markup, calendar_notification_markup
 from traktogram.models import CalendarEpisode
 from traktogram.storage import Storage
-from traktogram.trakt import TraktClient, TraktSession
+from traktogram.services import TraktClient
 from traktogram.utils import make_calendar_notification_task_id, parse_redis_uri
 
 
@@ -81,7 +80,7 @@ async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes
     await ctx.bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
-async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id,
+async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id,
                                          episodes=None, start_date=None, days=7):
     if episodes is None:
         episodes = await sess.calendar_shows(start_date, days, extended=True)

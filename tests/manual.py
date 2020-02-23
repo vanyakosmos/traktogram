@@ -1,3 +1,4 @@
+import asyncio
 import os
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
@@ -46,7 +47,7 @@ async def schedule_multi(*, queue, user_id, first, group, **kwargs):
                                    _defer_until=first.first_aired)
 
 
-async def schedule_calendar_notification(sess: TraktSession, queue: ArqRedis, user_id, multi=False, delay=1):
+async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id, multi=False, delay=1):
     episodes = await sess.calendar_shows(extended=True, start_date='2020-02-25', days=2)
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:

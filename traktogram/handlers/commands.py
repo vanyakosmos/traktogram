@@ -6,8 +6,8 @@ from aiogram.types import Message
 
 from traktogram.rendering import render_html
 from traktogram.router import Dispatcher, Router
+from traktogram.services import TraktException
 from traktogram.storage import Storage
-from traktogram.trakt import TraktException
 from traktogram.worker import schedule_calendar_notification, worker_queue_var
 from .utils import trakt_session
 

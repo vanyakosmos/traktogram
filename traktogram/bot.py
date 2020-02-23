@@ -10,7 +10,7 @@ from traktogram.logging_setup import setup_logging
 from traktogram.middlewares import LoggingMiddleware
 from traktogram.router import Dispatcher
 from traktogram.storage import Storage
-from traktogram.trakt import TraktClient
+from traktogram.services import TraktClient
 from traktogram.worker import get_redis_settings, worker_queue_var
 
 

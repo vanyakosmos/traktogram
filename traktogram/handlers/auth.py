@@ -6,7 +6,7 @@ from aiogram.types import Message
 from traktogram.rendering import render_html
 from traktogram.router import Router
 from traktogram.storage import Storage
-from traktogram.trakt import TraktClient
+from traktogram.services import TraktClient
 from traktogram.worker import schedule_calendar_notification, get_tasks_keys, worker_queue_var
 
 
@@ -59,8 +59,7 @@ async def auth_handler(message: Message):
 
     await storage.set_state(user=user_id, state='auth')
     try:
-        access_token = await process_auth_flow(message)
-        if access_token:
+        if access_token := await process_auth_flow(message):
             sess = trakt.auth(access_token)
             await schedule_calendar_notification(sess, queue, user_id)
     finally:
@@ -73,18 +72,22 @@ async def logout_handler(message: Message):
     trakt = TraktClient.get_current()
     queue = worker_queue_var.get()
     user_id = message.from_user.id
+    action = asyncio.create_task(message.bot.send_chat_action(message.chat.id, 'typing'))
 
     creds = await storage.get_creds(user_id)
     if creds:
         sess = trakt.auth(creds.access_token)
         tasks = [
+            action,
             sess.revoke_token(),
             storage.remove_creds(message.from_user.id),
             message.answer("Successfully logged out."),
         ]
-        keys = await get_tasks_keys(queue, user_id)
-        if keys:
-            tasks.append(*keys)
+        if keys := await get_tasks_keys(queue, user_id):
+            tasks.append(queue.delete(*keys))
         await asyncio.gather(*tasks)
     else:
-        await message.answer("You are not logged in. Use /auth to authenticate.")
+        await asyncio.gather(
+            action,
+            message.answer("You are not logged in. Use /auth to authenticate.")
+        )

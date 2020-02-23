@@ -1,5 +1,5 @@
 from traktogram.storage import Storage
-from traktogram.trakt import TraktClient
+from traktogram.services import TraktClient
 
 
 async def trakt_session(user_id):

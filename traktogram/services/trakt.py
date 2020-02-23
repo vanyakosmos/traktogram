@@ -8,8 +8,9 @@ from aiogram.utils.mixins import ContextInstanceMixin
 from aiohttp import ClientSession
 from yarl import URL
 
-from .config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
-from .models import CalendarEpisode, Episode, ShowEpisode, Season
+from .session import Session
+from ..config import TRAKT_CLIENT_ID, TRAKT_CLIENT_SECRET
+from ..models import CalendarEpisode, Episode, Season, ShowEpisode
 
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,27 @@ class TraktException(Exception):
         self.data = data
 
 
-class Session:
-    def __init__(self, session: ClientSession, access_token):
+class TraktClient(Session, ContextInstanceMixin):
+    def __init__(self, session: ClientSession = None, access_token: str = None):
+        super().__init__(session)
         self.base = URL('https://api.trakt.tv')
-        self.session = session
         self.access_token = access_token
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    async def close(self):
+        await self.session.close()
+
+    def auth(self, access_token=None) -> 'TraktClient':
+        return TraktClient(self.session, access_token)
+
+    @property
+    def is_authenticated(self):
+        return self.access_token is not None
 
     @property
     def headers(self):
@@ -33,12 +50,14 @@ class Session:
             'trakt-api-key': TRAKT_CLIENT_ID,
             'trakt-api-version': '2',
         }
-        if self.access_token:
+        if self.is_authenticated:
             headers['Authorization'] = f'Bearer {self.access_token}'
         return headers
 
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # AUTHENTICATION
+    # = = = = = = = = = = = = = = = = = = = = = = = =
 
-class AuthMixin(Session):
     async def device_code(self) -> dict:
         """
         Response example::
@@ -115,8 +134,10 @@ class AuthMixin(Session):
             'client_secret': TRAKT_CLIENT_SECRET,
         })
 
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # HISTORY
+    # = = = = = = = = = = = = = = = = = = = = = = = =
 
-class HistoryMixin(Session):
     async def get_history(self, episode_id, extended=False) -> List[ShowEpisode]:
         url = self.base / 'sync/history/episodes' / str(episode_id)
         if extended:
@@ -150,8 +171,10 @@ class HistoryMixin(Session):
     async def watched(self, episode_id):
         return len(await self.get_history(episode_id)) != 0
 
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # CALENDAR AND SEARCH
+    # = = = = = = = = = = = = = = = = = = = = = = = =
 
-class TraktSession(AuthMixin, HistoryMixin):
     async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarEpisode]:
         if not start_date:
             start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
@@ -197,21 +220,3 @@ class TraktSession(AuthMixin, HistoryMixin):
         if not data:
             return
         return ShowEpisode(**data[0])
-
-
-class TraktClient(TraktSession, ContextInstanceMixin):
-    def __init__(self, session: ClientSession = None, access_token: str = None):
-        session = session or ClientSession()
-        super().__init__(session, access_token)
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.close()
-
-    async def close(self):
-        await self.session.close()
-
-    def auth(self, access_token=None) -> TraktSession:
-        return TraktClient(self.session, access_token)
