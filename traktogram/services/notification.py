@@ -73,13 +73,13 @@ class NotificationSchedulerService:
 
 
 class CalendarNotification:
-    cd = CallbackData('e', 'id', 'action')
+    cd = CallbackData('e', 'id', 'watched')
 
     @classmethod
     async def markup(cls, se: ShowEpisode, watched: bool):
         mark = '✅' if watched else '❌'
-        watch_btn = IKB(f'{mark} watched',
-                        callback_data=cls.cd.new(id=se.episode.ids.trakt, action='watch'))
+        cd = cls.cd.new(id=se.episode.ids.trakt, watched='1' if watched else '0')
+        watch_btn = IKB(f'{mark} watched', callback_data=cd)
 
         kb = InlineKeyboardMarkup(inline_keyboard=[[watch_btn]])
         if not watched:

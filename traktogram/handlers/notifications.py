@@ -25,13 +25,18 @@ async def toggle_watched_status(sess: TraktClient, episode_id, watched: bool):
     return not watched
 
 
-@router.callback_query_handler(single_nt_cd.filter(action='watch'))
+@router.callback_query_handler(single_nt_cd.filter())
 async def calendar_notification_watch_handler(query: CallbackQuery, callback_data: dict):
     episode_id = callback_data['id']
+    prev_watched = callback_data.get('watched') == '1'
 
     sess = await trakt_session(query.from_user.id)
     watched = await sess.watched(episode_id)
-    watched = await toggle_watched_status(sess, episode_id, watched)
+    if watched is prev_watched:
+        watched = await toggle_watched_status(sess, episode_id, watched)
+    else:
+        msg = 'watched' if watched else 'unwatched'
+        logger.debug(f"user already marked this as {msg}")
     se = await sess.search_by_episode_id(episode_id, extended=True)
     logger.debug(se)
     # update keyboard
