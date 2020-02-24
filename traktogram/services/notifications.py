@@ -85,13 +85,13 @@ class CalendarNotification:
     cd = CallbackData('e', 'id', 'watched')
 
     @classmethod
-    async def markup(cls, se: ShowEpisode, watched: bool):
+    async def markup(cls, se: ShowEpisode, watched: bool, hide: bool):
         mark = '✅' if watched else '❌'
         cd = cls.cd.new(id=se.episode.ids.trakt, watched='1' if watched else '0')
         watch_btn = IKB(f'{mark} watched', callback_data=cd)
 
         kb = InlineKeyboardMarkup(inline_keyboard=[[watch_btn]])
-        if not watched:
+        if not hide or not watched:
             kb.add(*[
                 IKB(source, url=str(url))
                 async for source, url in watch_urls(se.show)
@@ -103,10 +103,16 @@ class CalendarNotification:
             'calendar_notification',
             show_episode=ce,
         )
-        creds = await storage.get_creds(user_id)
+        creds, user_data = await asyncio.gather(
+            storage.get_creds(user_id),
+            storage.get_data(user=user_id),
+        )
+        on_watch = user_data.get('on_watch', 'hide')
         sess = trakt.auth(creds.access_token)
         watched = await sess.watched(ce.episode.id)
-        keyboard_markup = await self.markup(ce, watched=watched)
+        if watched and on_watch == 'delete':
+            return
+        keyboard_markup = await self.markup(ce, watched=watched, hide=on_watch == 'hide')
         await bot.send_message(user_id, text, reply_markup=keyboard_markup, disable_web_page_preview=watched)
 
 

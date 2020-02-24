@@ -39,15 +39,39 @@ async def cancel_handler(message: Message):
 
 
 @router.command_handler(
+    'onwatch',
+    command_args=(
+        (('behavior',), dict(choices=['delete', 'hide', 'nothing'], nargs='?')),
+    ),
+    help="what should bot do when episode marked as watched: delete, hide, nothing. Example: /onwatch delete",
+)
+async def on_watch_behavior_handler(message: Message, command_args, command_args_error):
+    if command_args_error:
+        await message.answer(command_args_error)
+        return
+    b = command_args.behavior
+    storage = Storage.get_current()
+    if b is None:
+        user_data = await storage.get_data(user=message.from_user.id)
+        b = user_data.get('on_watch', 'hide')
+        await message.answer(f"current 'on watch' behavior is {b!r}")
+    else:
+        await asyncio.gather(
+            storage.update_data(user=message.from_user.id, data={'on_watch': b}),
+            message.answer(f"new 'on watch' behavior was set: {b}"),
+        )
+
+
+@router.command_handler(
     'calendar',
     command_args=(
         (('date',), dict(nargs='?')),
         (('--days', '-d'), dict(type=int, default=1)),
         (('--schedule', '-s'), dict(action='store_true')),
     ),
-    help="Show calendar events. Ex.: /calendar 2020-12-29 5"
+    help="Show calendar events. Ex.: /calendar 2020-12-29 5",
 )
-async def calendar_show_handler(message: Message, command_args, **kwargs):
+async def calendar_show_handler(message: Message, command_args):
     if not 1 <= command_args.days <= 7:
         await message.answer("invalid day offset, should in range [1, 7]")
         return

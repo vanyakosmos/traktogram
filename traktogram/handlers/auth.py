@@ -5,7 +5,7 @@ from aiogram.types import Message
 
 from traktogram.rendering import render_html
 from traktogram.router import Router
-from traktogram.services.notification import NotificationSchedulerService
+from traktogram.services.notifications import NotificationSchedulerService
 from traktogram.storage import Storage
 from traktogram.services import TraktClient
 from traktogram.worker import get_tasks_keys, worker_queue_var

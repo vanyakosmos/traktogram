@@ -1,5 +1,5 @@
 from .anime import AnimeDaoService, MALService, NineAnimeService
-from .notification import (
+from .notifications import (
     CalendarMultiNotification, CalendarMultiNotificationFlow, CalendarNotification,
     NotificationSchedulerService,
 )
