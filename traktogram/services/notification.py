@@ -5,15 +5,16 @@ from datetime import datetime
 from typing import Callable, List, Union
 
 from aiogram import Bot
-from aiogram.types import InlineKeyboardButton as IKB, InlineKeyboardMarkup, CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton as IKB, InlineKeyboardMarkup
 from aiogram.utils.callback_data import CallbackData
 from arq import ArqRedis
+from arq.constants import job_key_prefix
 
 from traktogram import rendering
 from traktogram.models import CalendarEpisode, ShowEpisode
 from traktogram.storage import Storage
 from traktogram.utils import compress_int, decompress_int
-from .ops import watch_urls, trakt_session
+from .ops import trakt_session, watch_urls
 from .trakt import TraktClient
 
 
@@ -44,6 +45,12 @@ class NotificationSchedulerService:
             id = f'{id}-{episodes_ids}'
         return id
 
+    async def clear_existing_job(self, job_id: str):
+        """Remove existing job. Can be useful for tasks recreation and update of payload."""
+        keys = await self.queue.keys(job_key_prefix + job_id)
+        if keys:
+            self.queue.delete(*keys)
+
     async def schedule(self, sess: TraktClient, user_id, episodes=None, start_date=None, days=7):
         if episodes is None:
             episodes = await sess.calendar_shows(start_date, days, extended=True)
@@ -58,6 +65,7 @@ class NotificationSchedulerService:
 
     async def schedule_single(self, task_name, user_id, ce: CalendarEpisode):
         job_id = self.make_job_id(task_name, user_id, ce.show.ids.trakt, ce.first_aired)
+        await self.clear_existing_job(job_id)
         await self.queue.enqueue_job(task_name, user_id, ce, _job_id=job_id, _defer_until=ce.first_aired)
 
     async def schedule_multi(self, task_name, user_id, group: List[CalendarEpisode]):
@@ -69,6 +77,7 @@ class NotificationSchedulerService:
             first.first_aired,
             *(e.episode.ids.trakt for e in group)
         )
+        await self.clear_existing_job(job_id)
         await self.queue.enqueue_job(task_name, user_id, group, _job_id=job_id, _defer_until=first.first_aired)
 
 
