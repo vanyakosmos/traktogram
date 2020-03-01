@@ -83,6 +83,7 @@ class NineAnimeService(Session):
         url = url.update_query([
             # on 9anime only keyword filter works properly...
             ('keyword', query),
+            ('language[]', 'subbed'),
         ])
         return url
 
@@ -117,3 +118,18 @@ class NineAnimeService(Session):
         r = await self.session.get(url)
         data = await r.read()
         return self.extract_episode_url(data, episode)
+
+
+class KimCartoonService(Session):
+    base = URL('https://kimcartoon.to')
+
+    @classmethod
+    def episode_url(cls, title: str, season: int, episode: int, episode_title=None):
+        show_slug = slugify(title)
+        if season > 1:
+            show_slug = f'{show_slug}-Season-{season}'
+        ep_slug = f'Episode-{episode}'
+        if episode_title:
+            et = slugify(episode_title)
+            ep_slug = f'{ep_slug}-{et}'
+        return cls.base / 'Cartoon' / show_slug / ep_slug

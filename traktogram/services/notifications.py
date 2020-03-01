@@ -57,8 +57,9 @@ class NotificationSchedulerService:
         logger.debug(f"fetched {len(episodes)} episodes")
         groups = CalendarEpisode.group_by_show(episodes)
         for group in groups:
-            if len(group) == 1:
-                await self.schedule_single(self.send_single_task_name, user_id, group[0])
+            if len(group) <= 3:
+                for episode in group:
+                    await self.schedule_single(self.send_single_task_name, user_id, episode)
             else:
                 await self.schedule_multi(self.send_multi_task_name, user_id, group)
         logger.debug(f"scheduled {len(groups)} notifications")
@@ -94,7 +95,7 @@ class CalendarNotification:
         if not hide or not watched:
             kb.add(*[
                 IKB(source, url=str(url))
-                async for source, url in watch_urls(se.show)
+                async for source, url in watch_urls(se.show, se.episode)
             ])
         return kb
 

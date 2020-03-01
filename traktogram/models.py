@@ -20,6 +20,7 @@ class Show(BaseModel):
     ids: ShowIDs
     title: str
     year: int
+    genres: List[str] = None
     language: str = None
 
     @property

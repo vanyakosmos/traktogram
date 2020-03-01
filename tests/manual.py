@@ -3,7 +3,7 @@ import os
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from pprint import pprint
+from pprint import pprint, pformat
 
 from arq import Worker, create_pool
 
@@ -24,15 +24,16 @@ async def ctx_manager():
         ctx['redis'].close()
 
 
-async def schedule_single(*, queue, user_id, first, first_aired, **kwargs):
-    return await queue.enqueue_job('send_calendar_notifications', user_id, first,
-                                   _job_id=NotificationSchedulerService.make_job_id(
-                                       send_calendar_notifications,
-                                       user_id,
-                                       first.show.ids.trakt,
-                                       first_aired,
-                                   ),
-                                   _defer_until=first_aired)
+async def schedule_single(*, queue, user_id, first, group, first_aired, **kwargs):
+    for episode in group:
+        return await queue.enqueue_job('send_calendar_notifications', user_id, episode,
+                                       _job_id=NotificationSchedulerService.make_job_id(
+                                           send_calendar_notifications,
+                                           user_id,
+                                           first.show.ids.trakt,
+                                           first_aired,
+                                       ),
+                                       _defer_until=first_aired)
 
 
 async def schedule_multi(*, queue, user_id, first, group, **kwargs):
@@ -47,23 +48,28 @@ async def schedule_multi(*, queue, user_id, first, group, **kwargs):
                                    _defer_until=first.first_aired)
 
 
-async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id, multi=False, delay=1):
-    episodes = await sess.calendar_shows(extended=True, start_date='2020-02-25', days=2)
+async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id, multi=False,
+                                         delay=1, start_date='2020-02-24'):
+    repeat = 1
+    fast_stop = False
+    logger.debug((user_id, start_date, multi))
+    episodes = await sess.calendar_shows(extended=True, start_date=start_date, days=1)
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:
         e.first_aired = first_aired
+    logger.debug(pformat(episodes))
     groups = CalendarEpisode.group_by_show(episodes, max_num=3)
-    print(len(groups))
-    print(list(map(len, groups)))
+    logger.debug(f"groups: {list(map(len, groups))}")
     for group in groups:
         first = group[0]
-        if len(group) == 1 and not multi:
-            for i in range(3):
-                print(await schedule_single(**locals()))
-            break
+        if len(group) <= 3 and not multi:
+            for i in range(repeat):
+                logger.debug("schedule single %s", await schedule_single(**locals()))
         if len(group) > 1 and multi:
-            for i in range(3):
-                print(await schedule_multi(**locals()))
+            for i in range(repeat):
+                logger.debug("schedule multi %s", await schedule_multi(**locals()))
+        if fast_stop:
+            break
 
 
 @with_context
@@ -101,7 +107,7 @@ async def test_refresh_token(user_id):
 
 
 async def test_task(_):
-    print('test')
+    logger.debug('test task')
 
 
 async def test_same_time_schedule():
