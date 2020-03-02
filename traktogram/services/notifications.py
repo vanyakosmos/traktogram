@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime
-from typing import Callable, List, Union
+from datetime import timedelta
+from typing import Callable, List, Union, Iterable
 
 from aiogram import Bot
 from aiogram.types import CallbackQuery, InlineKeyboardButton as IKB, InlineKeyboardMarkup
@@ -13,7 +13,7 @@ from arq.constants import job_key_prefix
 from traktogram import rendering
 from traktogram.models import CalendarEpisode, ShowEpisode
 from traktogram.storage import Storage
-from traktogram.utils import compress_int, decompress_int
+from traktogram.utils import compress_int, decompress_int, to_str
 from .ops import trakt_session, watch_urls
 from .trakt import TraktClient
 
@@ -29,20 +29,20 @@ class NotificationSchedulerService:
         self.queue = queue
 
     @classmethod
-    def make_job_id(cls, func: Union[str, Callable], user_id, show_id, dt: datetime, *episodes_ids):
+    def make_job_id(cls, func: Union[str, Callable], user_id, *args, extra: Iterable = None):
         """
         Create unique job ID.
         Naturally show+time is enough for uniquely identify job user-wise. But because multi
         notification can be split into multiple messages we also need to accept extra data
         with episodes ids.
         """
+        id = '-'.join(map(to_str, args))
         if not isinstance(func, str):
             func = func.__name__
-        dt = dt.isoformat()
-        id = f"{func}-{user_id}-{show_id}-{dt}"
-        if episodes_ids:
-            episodes_ids = '|'.join(map(str, episodes_ids))
-            id = f'{id}-{episodes_ids}'
+        id = f'{func}-{user_id}-{id}'
+        if extra:
+            extra_tail = '|'.join(map(to_str, extra))
+            id = f'{id}-{extra_tail}'
         return id
 
     async def clear_existing_job(self, job_id: str):
@@ -51,32 +51,39 @@ class NotificationSchedulerService:
         if keys:
             self.queue.delete(*keys)
 
-    async def schedule(self, sess: TraktClient, user_id, episodes=None, start_date=None, days=7):
+    async def schedule(self, sess: TraktClient, user_id, episodes=None, start_date=None, days=2):
         if episodes is None:
             episodes = await sess.calendar_shows(start_date, days, extended=True)
         logger.debug(f"fetched {len(episodes)} episodes")
         groups = CalendarEpisode.group_by_show(episodes)
+        await self.schedule_groups(user_id, groups)
+        logger.debug(f"scheduled {len(groups)} notifications")
+
+    async def schedule_groups(self, user_id, groups: List[List[CalendarEpisode]]):
         for group in groups:
             if len(group) <= 3:
-                for episode in group:
+                for i, episode in enumerate(group):
+                    episode.first_aired += timedelta(seconds=i)  # send in the right order
                     await self.schedule_single(self.send_single_task_name, user_id, episode)
             else:
                 await self.schedule_multi(self.send_multi_task_name, user_id, group)
-        logger.debug(f"scheduled {len(groups)} notifications")
 
     async def schedule_single(self, task_name, user_id, ce: CalendarEpisode):
-        job_id = self.make_job_id(task_name, user_id, ce.show.ids.trakt, ce.first_aired)
+        job_id = self.make_job_id(
+            task_name, user_id,
+            ce.show.id, ce.episode.id,
+            ce.first_aired,
+        )
         await self.clear_existing_job(job_id)
         await self.queue.enqueue_job(task_name, user_id, ce, _job_id=job_id, _defer_until=ce.first_aired)
 
     async def schedule_multi(self, task_name, user_id, group: List[CalendarEpisode]):
         first = group[0]
         job_id = self.make_job_id(
-            task_name,
-            user_id,
-            first.show.ids.trakt,
+            task_name, user_id,
+            first.show.id,
             first.first_aired,
-            *(e.episode.ids.trakt for e in group)
+            extra=(e.episode.id for e in group)
         )
         await self.clear_existing_job(job_id)
         await self.queue.enqueue_job(task_name, user_id, group, _job_id=job_id, _defer_until=first.first_aired)

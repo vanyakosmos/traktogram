@@ -1,6 +1,7 @@
 import math
 import string
 import textwrap
+from datetime import datetime
 from functools import singledispatch
 from types import FunctionType
 from typing import List
@@ -34,9 +35,9 @@ def split_group(group: list, max_num=8) -> List[List]:
         lens[i] += 1
     res = []
     a = 0  # anchor
-    for l in lens:
-        res.append(group[a:a + l])
-        a += l
+    for e in lens:
+        res.append(group[a:a + e])
+        a += e
     return res
 
 
@@ -61,6 +62,11 @@ def to_str(v):
 @to_str.register
 def _(v: FunctionType):
     return f"Function({v.__module__}:{v.__qualname__})"
+
+
+@to_str.register
+def _(v: datetime):
+    return v.isoformat()
 
 
 @to_str.register

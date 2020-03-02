@@ -24,52 +24,20 @@ async def ctx_manager():
         ctx['redis'].close()
 
 
-async def schedule_single(*, queue, user_id, first, group, first_aired, **kwargs):
-    for episode in group:
-        return await queue.enqueue_job('send_calendar_notifications', user_id, episode,
-                                       _job_id=NotificationSchedulerService.make_job_id(
-                                           send_calendar_notifications,
-                                           user_id,
-                                           first.show.ids.trakt,
-                                           first_aired,
-                                       ),
-                                       _defer_until=first_aired)
-
-
-async def schedule_multi(*, queue, user_id, first, group, **kwargs):
-    return await queue.enqueue_job('send_calendar_multi_notifications', user_id, group,
-                                   _job_id=NotificationSchedulerService.make_job_id(
-                                       send_calendar_notifications,
-                                       user_id,
-                                       first.show.ids.trakt,
-                                       first.first_aired,
-                                       *(e.episode.ids.trakt for e in group)
-                                   ),
-                                   _defer_until=first.first_aired)
-
-
 async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id, multi=False,
-                                         delay=1, start_date='2020-02-24'):
-    repeat = 1
-    fast_stop = False
-    logger.debug((user_id, start_date, multi))
+                                         start_date=None, delay=1):
+    if start_date is None:
+        start_date = datetime.now().date().isoformat()
+    logger.debug(pformat(locals()))
     episodes = await sess.calendar_shows(extended=True, start_date=start_date, days=1)
     first_aired = datetime.utcnow() + timedelta(seconds=delay)
     for e in episodes:
         e.first_aired = first_aired
-    logger.debug(pformat(episodes))
+    logger.debug(pformat([e.dict() for e in episodes]))
     groups = CalendarEpisode.group_by_show(episodes, max_num=3)
     logger.debug(f"groups: {list(map(len, groups))}")
-    for group in groups:
-        first = group[0]
-        if len(group) <= 3 and not multi:
-            for i in range(repeat):
-                logger.debug("schedule single %s", await schedule_single(**locals()))
-        if len(group) > 1 and multi:
-            for i in range(repeat):
-                logger.debug("schedule multi %s", await schedule_multi(**locals()))
-        if fast_stop:
-            break
+    s = NotificationSchedulerService(queue)
+    await s.schedule_groups(user_id, groups)
 
 
 @with_context
@@ -81,9 +49,9 @@ async def schedule_calendar_notifications(ctx: Context, **kwargs):
         await schedule_calendar_notification(sess, ctx.redis, user_id, **kwargs)
 
 
-async def test_calendar(delay, **kwargs):
+async def test_calendar(**kwargs):
     async with ctx_manager() as ctx:
-        await schedule_calendar_notifications(ctx, delay=delay, **kwargs)
+        await schedule_calendar_notifications(ctx, **kwargs)
         worker = Worker(
             (send_calendar_notifications, send_calendar_multi_notifications),
             keep_result=0,
@@ -149,14 +117,14 @@ async def main():
     sub = parser.add_subparsers(dest='sub')
     p_cal = sub.add_parser('cal')
     p_cal.add_argument('--multi', '-m', action='store_true')
-    p_cal.add_argument('--delay', '-d', type=int, default=1)
+    p_cal.add_argument('--date', '-d', type=str, default=None)
     p_ref = sub.add_parser('refresh')
     p_ref.add_argument('user_id', type=int)
     sub.add_parser('same')
     sub.add_parser('remove')
     args = parser.parse_args()
     if args.sub == 'cal':
-        await test_calendar(multi=args.multi, delay=args.delay)
+        await test_calendar(multi=args.multi, start_date=args.date)
     elif args.sub == 'refresh':
         await test_refresh_token(args.user_id)
     elif args.sub == 'same':
