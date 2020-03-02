@@ -6,7 +6,10 @@ from aiogram.types import Message
 
 from traktogram.rendering import render_html
 from traktogram.router import Dispatcher, Router
-from traktogram.services import NotificationSchedulerService, TraktException, trakt_session
+from traktogram.services import (
+    CalendarNotification, NotificationSchedulerService, TraktClient, TraktException,
+    trakt_session,
+)
 from traktogram.storage import Storage
 from traktogram.utils import a
 from traktogram.worker import worker_queue_var
@@ -32,11 +35,32 @@ async def help_handler(message: Message):
 
 @router.command_handler('cancel', help="cancel everything", state='*')
 async def cancel_handler(message: Message):
+    user_id = message.from_user.id
     storage = Storage.get_current()
-    await asyncio.gather(
-        storage.finish(user=message.from_user.id),
-        message.answer("Whatever it was, it was canceled."),
-    )
+    user_data = await storage.get_data(user=user_id)
+    de = user_data.get('deleted_episode')
+    if de:
+        asyncio.create_task(message.bot.send_chat_action(user_id, 'typing'))
+        # todo: use lock
+        logger.debug(f"restoring deleted notification")
+        sess = await trakt_session(user_id, storage)
+        del user_data['deleted_episode']
+        se, rfh_data, _ = await asyncio.gather(
+            sess.search_by_episode_id(de, extended=True),
+            sess.remove_from_history(de),
+            storage.set_data(user=user_id, data=user_data),
+        )
+        logger.debug((se, rfh_data))
+        await CalendarNotification.send(
+            message.bot, TraktClient.get_current(), storage,
+            user_id, se,
+            watched=False,
+        )
+    else:
+        await asyncio.gather(
+            storage.finish(user=user_id),
+            message.answer("Whatever it was, it was canceled."),
+        )
 
 
 @router.command_handler(

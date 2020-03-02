@@ -82,6 +82,7 @@ async def logout_handler(message: Message):
         tasks = [
             action,
             sess.revoke_token(),
+            storage.finish(user=user_id),
             storage.remove_creds(message.from_user.id),
             message.answer("Successfully logged out."),
         ]

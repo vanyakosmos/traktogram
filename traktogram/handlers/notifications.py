@@ -28,13 +28,14 @@ async def toggle_watched_status(sess: TraktClient, episode_id, watched: bool):
 
 @router.callback_query_handler(single_nt_cd.filter())
 async def calendar_notification_watch_handler(query: CallbackQuery, callback_data: dict):
+    user_id = query.from_user.id
     episode_id = callback_data['id']
     prev_watched = callback_data.get('watched') == '1'
 
     store = Storage.get_current()
     sess, user_pref = await asyncio.gather(
-        trakt_session(query.from_user.id),
-        store.get_pref(user=query.from_user.id)
+        trakt_session(user_id),
+        store.get_pref(user=user_id)
     )
     on_watch = user_pref.get('on_watch', 'hide')
     watched = await sess.watched(episode_id)
@@ -45,6 +46,7 @@ async def calendar_notification_watch_handler(query: CallbackQuery, callback_dat
         if watched:
             logger.debug("episode is watched and on_watch=delete")
             await asyncio.gather(
+                store.update_data(user=user_id, data={'deleted_episode': episode_id}),
                 query.message.delete(),
                 query.answer("added to history"),
             )

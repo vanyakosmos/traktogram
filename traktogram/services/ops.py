@@ -17,9 +17,9 @@ async def watch_urls(show: Show, episode: Episode):
         yield 'kimcartoon#2', KimCartoonService.episode_url(show.title, episode.season, episode.number, episode.title)
 
 
-async def trakt_session(user_id):
-    storage = Storage.get_current()
-    trakt = TraktClient.get_current()
+async def trakt_session(user_id, storage=None, trakt=None):
+    storage = storage or Storage.get_current()
+    trakt = trakt or TraktClient.get_current()
     creds = await storage.get_creds(user_id)
     sess = trakt.auth(creds.access_token)
     return sess

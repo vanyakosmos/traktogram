@@ -106,10 +106,12 @@ class CalendarNotification:
             ])
         return kb
 
-    async def send(self, bot: Bot, trakt: TraktClient, storage: Storage, user_id, ce: CalendarEpisode):
+    @classmethod
+    async def send(cls, bot: Bot, trakt: TraktClient, storage: Storage, user_id, se: ShowEpisode,
+                   watched: bool = None):
         text = rendering.render_html(
             'calendar_notification',
-            show_episode=ce,
+            show_episode=se,
         )
         creds, user_pref = await asyncio.gather(
             storage.get_creds(user_id),
@@ -117,10 +119,11 @@ class CalendarNotification:
         )
         on_watch = user_pref.get('on_watch', 'hide')
         sess = trakt.auth(creds.access_token)
-        watched = await sess.watched(ce.episode.id)
+        if watched is None:
+            watched = await sess.watched(se.episode.id)
         if watched and on_watch == 'delete':
             return
-        keyboard_markup = await self.markup(ce, watched=watched, hide=on_watch == 'hide')
+        keyboard_markup = await cls.markup(se, watched=watched, hide=on_watch == 'hide')
         await bot.send_message(user_id, text, reply_markup=keyboard_markup, disable_web_page_preview=watched)
 
 
