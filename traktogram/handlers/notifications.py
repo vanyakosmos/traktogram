@@ -32,11 +32,11 @@ async def calendar_notification_watch_handler(query: CallbackQuery, callback_dat
     prev_watched = callback_data.get('watched') == '1'
 
     store = Storage.get_current()
-    sess, user_data = await asyncio.gather(
+    sess, user_pref = await asyncio.gather(
         trakt_session(query.from_user.id),
-        store.get_data(user=query.from_user.id)
+        store.get_pref(user=query.from_user.id)
     )
-    on_watch = user_data.get('on_watch', 'hide')
+    on_watch = user_pref.get('on_watch', 'hide')
     watched = await sess.watched(episode_id)
 
     # delete message if it is marked as watched

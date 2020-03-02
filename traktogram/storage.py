@@ -16,6 +16,7 @@ from traktogram.utils import parse_redis_uri
 
 CREDS_KEY = 'creds'
 CACHE_KEY = 'cache'
+USER_PREF_KEY = 'pref'
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,44 @@ class Creds(BaseModel):
     refresh_token: str
 
 
-class HelpersMixin:
+def display_redis_uri(host='localhost', port=6379, db=None, password=None, **kwargs):
+    auth = f":****@" if password else ''
+    uri = f"redis://{auth}{host}:{port}"
+    if db is not None:
+        uri += f'/{db}'
+    return uri
+
+
+class Storage(RedisStorage2, ContextInstanceMixin):
+    def __init__(self, uri=None, **kwargs):
+        kwargs.setdefault('prefix', 'traktogram')
+        if uri:
+            options = parse_redis_uri(uri)
+            for k, v in options.items():
+                kwargs.setdefault(k, v)
+        logger.debug(f"Connecting to redis: {display_redis_uri(**kwargs)}")
+        super().__init__(**kwargs)
+
+    async def redis(self) -> aioredis.Redis:
+        async with self._connection_lock:
+            if self._redis is None or self._redis.closed:
+                self._redis = await aioredis.create_redis_pool(
+                    (self._host, self._port),
+                    db=self._db, password=self._password, ssl=self._ssl,
+                    minsize=1, maxsize=self._pool_size,
+                    loop=self._loop, **self._kwargs
+                )
+        return self._redis
+
+    async def close(self):
+        async with self._connection_lock:
+            if self._redis and not self._redis.closed:
+                self._redis.close()
+
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # HELPERS
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+
     async def hscan_iter(self: 'Storage', name, match=None, count=None):
         conn = await self.redis()
         cursor = '0'
@@ -34,8 +72,10 @@ class HelpersMixin:
             for item in data:
                 yield item
 
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # CREDENTIALS
+    # = = = = = = = = = = = = = = = = = = = = = = = =
 
-class CredsMixin(HelpersMixin):
     @property
     async def creds_conn_key(self: 'Storage'):
         conn = await self.redis()
@@ -70,8 +110,10 @@ class CredsMixin(HelpersMixin):
                 Creds(**data),
             )
 
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # CACHE
+    # = = = = = = = = = = = = = = = = = = = = = = = =
 
-class CacheMixin:
     CACHE_EXPIRY = int(timedelta(weeks=1).total_seconds())
 
     @property
@@ -135,38 +177,26 @@ class CacheMixin:
         await self.save_cache(key, json.dumps(res), expire=expire)
         return res
 
+    # = = = = = = = = = = = = = = = = = = = = = = = =
+    # USER PREFERENCES
+    # = = = = = = = = = = = = = = = = = = = = = = = =
 
-def build_redis_uri(host='localhost', port=6379, db=None, password=None, **kwargs):
-    auth = f":****@" if password else ''
-    uri = f"redis://{auth}{host}:{port}"
-    if db is not None:
-        uri += f'/{db}'
-    return uri
+    async def get_pref(self, *, chat=None, user=None, default: dict = None) -> dict:
+        chat, user = self.check_address(chat=chat, user=user)
+        key = self.generate_key(USER_PREF_KEY, chat, user)
+        redis = await self.redis()
+        raw_result = await redis.get(key, encoding='utf8')
+        if raw_result:
+            return json.loads(raw_result)
+        return default or {}
 
+    async def set_pref(self, *, chat=None, user=None, **data):
+        chat, user = self.check_address(chat=chat, user=user)
+        key = self.generate_key(USER_PREF_KEY, chat, user)
+        redis = await self.redis()
+        await redis.set(key, json.dumps(data))
 
-class Storage(RedisStorage2, CredsMixin, CacheMixin, ContextInstanceMixin):
-    def __init__(self, uri=None, **kwargs):
-        kwargs.setdefault('prefix', 'traktogram')
-        if uri:
-            options = parse_redis_uri(uri)
-            for k, v in options.items():
-                kwargs.setdefault(k, v)
-        redis_uri = build_redis_uri(**kwargs)
-        logger.debug(f"Connecting to redis: {redis_uri}")
-        super().__init__(**kwargs)
-
-    async def redis(self) -> aioredis.Redis:
-        async with self._connection_lock:
-            if self._redis is None or self._redis.closed:
-                self._redis = await aioredis.create_redis_pool(
-                    (self._host, self._port),
-                    db=self._db, password=self._password, ssl=self._ssl,
-                    minsize=1, maxsize=self._pool_size,
-                    loop=self._loop, **self._kwargs
-                )
-        return self._redis
-
-    async def close(self):
-        async with self._connection_lock:
-            if self._redis and not self._redis.closed:
-                self._redis.close()
+    async def update_pref(self, *, chat=None, user=None, **data):
+        temp_data = await self.get_pref(chat=chat, user=user, default={})
+        temp_data.update(data)
+        await self.set_pref(chat=chat, user=user, **temp_data)

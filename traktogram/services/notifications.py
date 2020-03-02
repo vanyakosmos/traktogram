@@ -111,11 +111,11 @@ class CalendarNotification:
             'calendar_notification',
             show_episode=ce,
         )
-        creds, user_data = await asyncio.gather(
+        creds, user_pref = await asyncio.gather(
             storage.get_creds(user_id),
-            storage.get_data(user=user_id),
+            storage.get_pref(user=user_id),
         )
-        on_watch = user_data.get('on_watch', 'hide')
+        on_watch = user_pref.get('on_watch', 'hide')
         sess = trakt.auth(creds.access_token)
         watched = await sess.watched(ce.episode.id)
         if watched and on_watch == 'delete':

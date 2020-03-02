@@ -8,6 +8,7 @@ from traktogram.rendering import render_html
 from traktogram.router import Dispatcher, Router
 from traktogram.services import NotificationSchedulerService, TraktException, trakt_session
 from traktogram.storage import Storage
+from traktogram.utils import a
 from traktogram.worker import worker_queue_var
 
 
@@ -52,12 +53,12 @@ async def on_watch_behavior_handler(message: Message, command_args, command_args
     b = command_args.behavior
     storage = Storage.get_current()
     if b is None:
-        user_data = await storage.get_data(user=message.from_user.id)
-        b = user_data.get('on_watch', 'hide')
+        user_pref = await storage.get_pref(user=message.from_user.id)
+        b = user_pref.get('on_watch', 'hide')
         await message.answer(f"current 'on watch' behavior is {b!r}")
     else:
         await asyncio.gather(
-            storage.update_data(user=message.from_user.id, data={'on_watch': b}),
+            storage.update_pref(user=message.from_user.id, on_watch=b),
             message.answer(f"new 'on watch' behavior was set: {b}"),
         )
 
@@ -65,9 +66,9 @@ async def on_watch_behavior_handler(message: Message, command_args, command_args
 @router.command_handler(
     'calendar',
     command_args=(
-        (('date',), dict(nargs='?')),
-        (('--days', '-d'), dict(type=int, default=1)),
-        (('--schedule', '-s'), dict(action='store_true')),
+        a('date', nargs='?'),
+        a('--days', '-d', type=int, default=1),
+        a('--schedule', '-s', action='store_true'),
     ),
     help="Show calendar events. Ex.: /calendar 2020-12-29 5",
 )

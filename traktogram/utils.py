@@ -81,3 +81,7 @@ def parse_redis_uri(uri):
         'port': port,
         **options,
     }
+
+
+def a(*args, **kwargs):
+    return args, kwargs
