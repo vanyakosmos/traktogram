@@ -31,17 +31,16 @@ async def ctx_manager():
         ctx['redis'].close()
 
 
-async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id, multi=False,
-                                         start_date=None, delay=1):
+async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, user_id, start_date=None):
     if start_date is None:
         start_date = datetime.now().date().isoformat()
     logger.debug(pformat(locals()))
     episodes = await sess.calendar_shows(extended=True, start_date=start_date, days=1)
-    first_aired = datetime.utcnow() + timedelta(seconds=delay)
+    first_aired = datetime.utcnow() + timedelta(seconds=1)
     for e in episodes:
         e.first_aired = first_aired
     logger.debug(pformat([e.dict() for e in episodes]))
-    groups = CalendarEpisode.group_by_show(episodes, max_num=3)
+    groups = CalendarEpisode.group_by_show(episodes, max_num=8)
     logger.debug(f"groups: {list(map(len, groups))}")
     s = NotificationSchedulerService(queue)
     await s.schedule_groups(user_id, groups)
@@ -123,7 +122,6 @@ async def main():
     parser.add_argument('--all', '-a', action='store_true')
     sub = parser.add_subparsers(dest='sub')
     p_cal = sub.add_parser('cal')
-    p_cal.add_argument('--multi', '-m', action='store_true')
     p_cal.add_argument('--date', '-d', type=str, default=None)
     p_ref = sub.add_parser('refresh')
     p_ref.add_argument('user_id', type=int)
@@ -131,7 +129,7 @@ async def main():
     sub.add_parser('remove')
     args = parser.parse_args()
     if args.sub == 'cal':
-        await test_calendar(multi=args.multi, start_date=args.date)
+        await test_calendar(start_date=args.date)
     elif args.sub == 'refresh':
         await test_refresh_token(args.user_id)
     elif args.sub == 'same':
@@ -139,8 +137,7 @@ async def main():
     elif args.sub == 'remove':
         await test_remove()
     elif args.all:
-        await test_calendar(multi=True, delay=1)
-        await test_calendar(multi=False, delay=1)
+        await test_calendar()
         await test_refresh_token(os.getenv('USER_ID'))
         await test_same_time_schedule()
 
