@@ -1,7 +1,8 @@
 import asyncio
 import logging
+from datetime import datetime, timedelta
 
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 
 from traktogram.router import Router
 from traktogram.services import (
@@ -26,6 +27,11 @@ async def toggle_watched_status(sess: TraktClient, episode_id, watched: bool):
     return not watched
 
 
+async def postponed_delete(msg: Message, delay=5.):
+    await asyncio.sleep(delay)
+    await msg.delete()
+
+
 @router.callback_query_handler(single_nt_cd.filter())
 async def calendar_notification_watch_handler(query: CallbackQuery, callback_data: dict):
     user_id = query.from_user.id
@@ -40,6 +46,14 @@ async def calendar_notification_watch_handler(query: CallbackQuery, callback_dat
     on_watch = user_pref.get('on_watch', 'hide')
     watched = await sess.watched(episode_id)
 
+    # if message was created more than 48 hours ago then it cannot be deleted
+    now = datetime.now()
+    delta = now - query.message.date
+    if on_watch == 'delete' and delta >= timedelta(hours=48):
+        warn = await query.message.reply("quick note: bot cannot delete messages older then 48 hours",
+                                         disable_notification=True)
+        asyncio.create_task(postponed_delete(warn, delay=5))
+        on_watch = 'hide'
     # delete message if it is marked as watched
     if on_watch == 'delete':
         watched = await toggle_watched_status(sess, episode_id, watched)
