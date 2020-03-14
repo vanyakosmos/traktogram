@@ -1,15 +1,22 @@
 import asyncio
+import logging
 import os
 from argparse import ArgumentParser
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
-from pprint import pprint, pformat
+from pprint import pformat, pprint
 
-from arq import Worker, create_pool
+from arq import ArqRedis, Worker, create_pool
+from arq.constants import job_key_prefix
 
-from traktogram.worker import *
+from traktogram.logging_setup import setup_logging
+from traktogram.models import CalendarEpisode
+from traktogram.services import NotificationSchedulerService, TraktClient
+from traktogram.worker import Context, get_redis_settings, on_shutdown, on_startup, send_calendar_multi_notifications, \
+    send_calendar_notifications, with_context
 
 
+logger = logging.getLogger(__name__)
 REDIS_SETTINGS = get_redis_settings(database=1)
 
 
