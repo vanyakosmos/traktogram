@@ -13,10 +13,7 @@ from pydantic import BaseModel
 from traktogram.config import BOT_TOKEN, REDIS_URL
 from traktogram.logging_setup import setup_logging
 from traktogram.models import CalendarEpisode
-from traktogram.services import (
-    CalendarMultiNotification, CalendarNotification, NotificationSchedulerService,
-    TraktClient
-)
+from traktogram.services import NotificationScheduler, TraktClient
 from traktogram.storage import Storage
 from traktogram.utils import parse_redis_uri
 
@@ -52,21 +49,17 @@ def without_context(f):
     return dec
 
 
-@with_context
-async def send_calendar_notifications(ctx: Context, user_id: str, ce: CalendarEpisode):
-    service = CalendarNotification()
-    await service.send(ctx.bot, ctx.trakt, ctx.storage, user_id, ce)
+async def send_calendar_notifications(ctx: dict, user_id: str, ce: CalendarEpisode):
+    return await NotificationScheduler.send_calendar_notifications(ctx, user_id, ce)
 
 
-@with_context
-async def send_calendar_multi_notifications(ctx: Context, user_id: str, episodes: List[CalendarEpisode]):
-    service = CalendarMultiNotification()
-    await service.send(ctx.bot, ctx.trakt, ctx.storage, user_id, episodes)
+async def send_calendar_multi_notifications(ctx: dict, user_id: str, episodes: List[CalendarEpisode]):
+    return await NotificationScheduler.send_calendar_multi_notifications(ctx, user_id, episodes)
 
 
 @with_context
 async def schedule_calendar_notifications(ctx: Context):
-    service = NotificationSchedulerService(ctx.redis)
+    service = NotificationScheduler(ctx.redis)
     async for user_id, creds in ctx.storage.creds_iter():
         sess = ctx.trakt.auth(creds.access_token)
         await service.schedule(sess, user_id)
@@ -81,8 +74,8 @@ async def schedule_tokens_refresh(ctx: Context):
 
 
 async def on_startup(ctx: dict):
-    NotificationSchedulerService.send_single_task_name = send_calendar_notifications.__name__
-    NotificationSchedulerService.send_multi_task_name = send_calendar_multi_notifications.__name__
+    NotificationScheduler.send_single_task_name = send_calendar_notifications.__name__
+    NotificationScheduler.send_multi_task_name = send_calendar_multi_notifications.__name__
     ctx['trakt'] = TraktClient()
     ctx['storage'] = Storage(REDIS_URL)
     ctx['bot'] = Bot(BOT_TOKEN, parse_mode='html')

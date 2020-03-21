@@ -21,7 +21,7 @@ from .trakt import TraktClient
 logger = logging.getLogger(__name__)
 
 
-class NotificationSchedulerService:
+class NotificationScheduler:
     send_single_task_name = 'send_calendar_notifications'
     send_multi_task_name = 'send_calendar_multi_notifications'
 
@@ -55,7 +55,7 @@ class NotificationSchedulerService:
         if episodes is None:
             episodes = await sess.calendar_shows(start_date, days, extended=True)
         logger.debug(f"fetched {len(episodes)} episodes")
-        groups = CalendarEpisode.group_by_show(episodes)
+        groups = CalendarEpisode.group_by_show(episodes, max_num=15)
         await self.schedule_groups(user_id, groups)
         logger.debug(f"scheduled {len(groups)} notifications")
 
@@ -64,11 +64,12 @@ class NotificationSchedulerService:
             if len(group) <= 3:
                 for i, episode in enumerate(group):
                     episode.first_aired += timedelta(seconds=i)  # send in the right order
-                    await self.schedule_single(self.send_single_task_name, user_id, episode)
+                    await self.schedule_single(user_id, episode)
             else:
-                await self.schedule_multi(self.send_multi_task_name, user_id, group)
+                await self.schedule_multi(user_id, group)
 
-    async def schedule_single(self, task_name, user_id, ce: CalendarEpisode):
+    async def schedule_single(self, user_id, ce: CalendarEpisode):
+        task_name = self.send_single_task_name
         job_id = self.make_job_id(
             task_name, user_id,
             ce.show.id, ce.episode.id,
@@ -77,7 +78,8 @@ class NotificationSchedulerService:
         await self.clear_existing_job(job_id)
         await self.queue.enqueue_job(task_name, user_id, ce, _job_id=job_id, _defer_until=ce.first_aired)
 
-    async def schedule_multi(self, task_name, user_id, group: List[CalendarEpisode]):
+    async def schedule_multi(self, user_id, group: List[CalendarEpisode]):
+        task_name = self.send_multi_task_name
         first = group[0]
         job_id = self.make_job_id(
             task_name, user_id,
@@ -87,6 +89,14 @@ class NotificationSchedulerService:
         )
         await self.clear_existing_job(job_id)
         await self.queue.enqueue_job(task_name, user_id, group, _job_id=job_id, _defer_until=first.first_aired)
+
+    @staticmethod
+    async def send_calendar_notifications(ctx: dict, user_id: str, ce: CalendarEpisode):
+        await CalendarNotification.send(ctx['bot'], ctx['trakt'], ctx['storage'], user_id, ce)
+
+    @staticmethod
+    async def send_calendar_multi_notifications(ctx: dict, user_id: str, episodes: List[CalendarEpisode]):
+        await CalendarMultiNotification.send(ctx['bot'], ctx['trakt'], ctx['storage'], user_id, episodes)
 
 
 class CalendarNotification:
@@ -144,7 +154,7 @@ class CalendarMultiNotification:
         return ids
 
     @classmethod
-    def markup(cls, se: ShowEpisode, episodes_ids: List[int], watched: bool, index=0):
+    async def markup(cls, se: ShowEpisode, episodes_ids: List[int], watched: bool, index=0):
         prev_ids = cls.encode_ids(episodes_ids[:index])
         cur_id = cls.encode_ids(episodes_ids[index:index + 1])
         next_ids = cls.encode_ids(episodes_ids[index + 1:])
@@ -157,9 +167,16 @@ class CalendarMultiNotification:
             IKB('👉' if index < len(episodes_ids) - 1 else '🤜',
                 callback_data=cls.cd.new(ids=next_ids, action='next')),
         ]
-        return InlineKeyboardMarkup(inline_keyboard=[row])
+        kb = InlineKeyboardMarkup(inline_keyboard=[row])
+        if not watched:
+            kb.add(*[
+                IKB(source, url=str(url))
+                async for source, url in watch_urls(se.show, se.episode)
+            ])
+        return kb
 
-    async def send(self, bot: Bot, trakt: TraktClient, storage: Storage, user_id: str, episodes: List[CalendarEpisode]):
+    @classmethod
+    async def send(cls, bot: Bot, trakt: TraktClient, storage: Storage, user_id: str, episodes: List[CalendarEpisode]):
         first = episodes[0]
         text = rendering.render_html(
             'calendar_multi_notification',
@@ -170,7 +187,7 @@ class CalendarMultiNotification:
         sess = trakt.auth(creds.access_token)
         watched = await sess.watched(first.episode.id)
         episodes_ids = [cs.episode.id for cs in episodes]
-        keyboard_markup = self.markup(first, episodes_ids, watched)
+        keyboard_markup = await cls.markup(first, episodes_ids, watched)
         await bot.send_message(user_id, text, reply_markup=keyboard_markup)
 
 
@@ -215,7 +232,7 @@ class CalendarMultiNotificationFlow:
             pass
 
     async def update_message(self, answer: str = None):
-        markup = CalendarMultiNotification.markup(self.se, self.episodes_ids, self.watched, self.index)
+        markup = await CalendarMultiNotification.markup(self.se, self.episodes_ids, self.watched, self.index)
         await asyncio.gather(
             self.query.message.edit_reply_markup(markup),
             self.query.answer(answer)

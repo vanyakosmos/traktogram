@@ -7,7 +7,7 @@ from aiogram.types import Message
 from traktogram.rendering import render_html
 from traktogram.router import Dispatcher, Router
 from traktogram.services import (
-    CalendarNotification, NotificationSchedulerService, TraktClient, TraktException,
+    CalendarNotification, NotificationScheduler, TraktClient, TraktException,
     trakt_session,
 )
 from traktogram.storage import Storage
@@ -113,6 +113,6 @@ async def calendar_show_handler(message: Message, command_args):
     queue = worker_queue_var.get()
     tasks = [message.answer(text)]
     if command_args.schedule:
-        service = NotificationSchedulerService(queue)
+        service = NotificationScheduler(queue)
         tasks.append(service.schedule(sess, user_id, episodes))
     await asyncio.gather(*tasks)

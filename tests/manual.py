@@ -11,7 +11,7 @@ from arq.constants import job_key_prefix
 
 from traktogram.logging_setup import setup_logging
 from traktogram.models import CalendarEpisode
-from traktogram.services import NotificationSchedulerService, TraktClient
+from traktogram.services import NotificationScheduler, TraktClient
 from traktogram.worker import Context, get_redis_settings, on_shutdown, on_startup, send_calendar_multi_notifications, \
     send_calendar_notifications, with_context
 
@@ -40,9 +40,9 @@ async def schedule_calendar_notification(sess: TraktClient, queue: ArqRedis, use
     for e in episodes:
         e.first_aired = first_aired
     logger.debug(pformat([e.dict() for e in episodes]))
-    groups = CalendarEpisode.group_by_show(episodes, max_num=8)
+    groups = CalendarEpisode.group_by_show(episodes, max_num=15)
     logger.debug(f"groups: {list(map(len, groups))}")
-    s = NotificationSchedulerService(queue)
+    s = NotificationScheduler(queue)
     await s.schedule_groups(user_id, groups)
 
 
