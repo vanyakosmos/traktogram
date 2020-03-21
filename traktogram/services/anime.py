@@ -78,11 +78,12 @@ class NineAnimeService(Session):
     episode_num = re.compile(r'ep (\d+)/\d+', re.I)
 
     @classmethod
-    def search_url(cls, query: str):
+    def search_url(cls, title: str, season: int):
         url = URL('https://9anime.to/filter')
+        if season > 0:
+            title = f"{title} {season}"
         url = url.update_query([
-            # on 9anime only keyword filter works properly...
-            ('keyword', query),
+            ('keyword', title),
             ('language[]', 'subbed'),
         ])
         return url
@@ -133,3 +134,46 @@ class KimCartoonService(Session):
             et = slugify(episode_title)
             ep_slug = f'{ep_slug}-{et}'
         return cls.base / 'Cartoon' / show_slug / ep_slug
+
+
+class AnimepaheService(Session):
+    base = URL('https://animepahe.com')
+
+    async def search(self, title: str, season: int):
+        url = self.base / 'api'
+        if season > 1:
+            title = f"{title} {season}"
+        url = url.update_query(
+            m='search',
+            l=8,
+            q=title
+        )
+        r = await self.session.get(url)
+        data = await r.json()
+        if data['total'] == 0:
+            return
+        else:
+            return data['data'][0]['slug']
+
+    async def season_url(self, title: str, season: int):
+        slug = await self.search(title, season)
+        return self.base / 'anime' / slug
+
+    @classmethod
+    def guess_season_url(cls, title: str, season: int):
+        slug = slugify(title)
+        if season > 1:
+            slug = f'{slug}-{season}'
+        return cls.base / 'anime' / slug
+
+
+class AnimekisaService(Session):
+    base = URL('https://animekisa.tv')
+
+    @classmethod
+    def episode_url(cls, title: str, season: int, episode: int):
+        slug = slugify(title)
+        if season > 1:
+            slug = f'{slug}-{season}'
+        slug = f'{slug}-episode-{episode}'
+        return cls.base / slug

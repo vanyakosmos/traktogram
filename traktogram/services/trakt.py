@@ -138,7 +138,7 @@ class TraktClient(Session, ContextInstanceMixin):
     # HISTORY
     # = = = = = = = = = = = = = = = = = = = = = = = =
 
-    async def get_history(self, episode_id, extended=False) -> List[ShowEpisode]:
+    async def get_history(self, episode_id, extended=True) -> List[ShowEpisode]:
         url = self.base / 'sync/history/episodes' / str(episode_id)
         if extended:
             url = url.update_query(extended='full')
@@ -175,7 +175,7 @@ class TraktClient(Session, ContextInstanceMixin):
     # CALENDAR AND SEARCH
     # = = = = = = = = = = = = = = = = = = = = = = = =
 
-    async def calendar_shows(self, start_date=None, days=7, extended=False) -> List[CalendarEpisode]:
+    async def calendar_shows(self, start_date=None, days=7, extended=True) -> List[CalendarEpisode]:
         if not start_date:
             start_date = datetime.utcnow().date().strftime('%Y-%m-%d')
         url = self.base / f'calendars/my/shows/{start_date}/{days}'
@@ -187,7 +187,7 @@ class TraktClient(Session, ContextInstanceMixin):
             raise TraktException(data)
         return [CalendarEpisode(**e) for e in data]
 
-    async def episode_summary(self, show_id: str, season: int, episode: int, extended=False) -> Episode:
+    async def episode_summary(self, show_id: str, season: int, episode: int, extended=True) -> Episode:
         url = self.base / f'shows/{show_id}/seasons/{season}/episodes/{episode}'
         if extended:
             url = url.update_query(extended='full')
@@ -195,7 +195,7 @@ class TraktClient(Session, ContextInstanceMixin):
         data = await r.json()
         return Episode(**data)
 
-    async def season_summary(self, show_id: str, season: int, extended=False):
+    async def season_summary(self, show_id: str, season: int, extended=True):
         url = self.base / f'shows/{show_id}/seasons'
         if extended:
             url = url.update_query(extended='full')
@@ -205,7 +205,7 @@ class TraktClient(Session, ContextInstanceMixin):
             if s['number'] == season:
                 return Season(**s)
 
-    async def search_by_id(self, provider, id, type=None, extended=False):
+    async def search_by_id(self, provider, id, type=None, extended=True):
         url = self.base / f'search/{provider}/{id}'
         if type:
             url = url.update_query(type=type)
@@ -215,7 +215,7 @@ class TraktClient(Session, ContextInstanceMixin):
         data = await r.json()
         return data
 
-    async def search_by_episode_id(self, episode_id, extended=False) -> Optional[ShowEpisode]:
+    async def search_by_episode_id(self, episode_id, extended=True) -> Optional[ShowEpisode]:
         data = await self.search_by_id('trakt', episode_id, type='episode', extended=extended)
         if not data:
             return

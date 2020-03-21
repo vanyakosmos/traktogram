@@ -98,7 +98,7 @@ class CalendarNotification:
         cd = cls.cd.new(id=se.episode.ids.trakt, watched='1' if watched else '0')
         watch_btn = IKB(f'{mark} watched', callback_data=cd)
 
-        kb = InlineKeyboardMarkup(inline_keyboard=[[watch_btn]])
+        kb = InlineKeyboardMarkup(row_width=5, inline_keyboard=[[watch_btn]])
         if not hide or not watched:
             kb.add(*[
                 IKB(source, url=str(url))
