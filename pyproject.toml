@@ -8,7 +8,7 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.6"
 colorlog = "^4.1.0"
-aiohttp = {extras = ["speedups"], version = "^3.6.2"}
+aiohttp = {extras = ["speedups"], version = "^3.7.4"}
 aiogram = "^2.6.1"
 ujson = "^1.35"
 uvloop = "^0.14.0"
